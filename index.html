@@ -160,7 +160,7 @@
               id="photo-stage"
               class="photo-stage"
               tabindex="0"
-              aria-label="Photo preview area. Drop an image here or use Choose image."
+              aria-label="Photo preview area. Drag anywhere in this area, including directly on the image, to reposition it."
             >
               <label id="photo-empty" class="photo-empty" for="photo-file">
                 <span class="photo-empty__graphic" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -170,7 +170,10 @@
               </label>
 
               <div id="photo-viewer" class="photo-viewer" hidden>
-                <img id="photo-preview" alt="Locally selected preview">
+                <img id="photo-preview" class="photo-preview" alt="Locally selected preview" draggable="false">
+                <div class="photo-pan-hint" aria-hidden="true">
+                  <span>✥</span> Drag anywhere to reposition
+                </div>
                 <div id="photo-drop-overlay" class="photo-drop-overlay" aria-hidden="true">
                   <strong>Release to replace the image</strong>
                 </div>
@@ -259,6 +262,24 @@
               </div>
             </div>
 
+            <details class="input-explainer" open>
+              <summary>What do Sample A, Sample B, and Blend mean?</summary>
+              <div class="input-definition-list">
+                <article>
+                  <span>A</span>
+                  <p><strong>Sample A</strong> is one reproducible, entirely simulated 68-point configuration generated around Synthetic Template A.</p>
+                </article>
+                <article>
+                  <span>B</span>
+                  <p><strong>Sample B</strong> is a second simulated configuration generated around a deliberately different synthetic template.</p>
+                </article>
+                <article>
+                  <span>A+B</span>
+                  <p><strong>Blend</strong> begins at 55% Template A and 45% Template B, is normalized, and receives its own deterministic simulated variation. It does not blend uploaded photos.</p>
+                </article>
+              </div>
+            </details>
+
             <div class="divider"><span>or use coordinates</span></div>
 
             <div class="control-group">
@@ -291,14 +312,16 @@
                   <option value="a">Reference A</option>
                   <option value="b">Reference B</option>
                 </select>
+                <small class="field-help">Chooses the simulated ensemble used to form the consensus and covariance model.</small>
               </label>
               <label class="field-label" for="vector-scale">
-                Residual display
+                Proportion warp
                 <select id="vector-scale">
                   <option value="1">1× literal</option>
                   <option value="3" selected>3× visible</option>
                   <option value="6">6× amplified</option>
                 </select>
+                <small class="field-help">Magnifies only the drawn warp and arrows; calculated metrics never change.</small>
               </label>
             </div>
 
@@ -315,18 +338,21 @@
                   <output id="environmental-stress-value" for="environmental-stress">0.35</output>
                   <input id="environmental-stress" type="range" min="0" max="1" step="0.01" value="0.35">
                   <span class="range-ends"><span>0</span><span>1</span></span>
+                  <small class="range-help">A researcher-defined 0-to-1 context code; it is saved with the export but is not used in any equation.</small>
                 </label>
                 <label class="range-field" for="pathogen-prevalence">
                   <span>Pathogen Prevalence Index</span>
                   <output id="pathogen-prevalence-value" for="pathogen-prevalence">0.20</output>
                   <input id="pathogen-prevalence" type="range" min="0" max="1" step="0.01" value="0.20">
                   <span class="range-ends"><span>0</span><span>1</span></span>
+                  <small class="range-help">A hypothetical prevalence annotation from 0 to 1; no causal effect is estimated.</small>
                 </label>
                 <label class="range-field" for="operational-sex-ratio">
                   <span>Operational Sex Ratio</span>
                   <output id="operational-sex-ratio-value" for="operational-sex-ratio">1.00</output>
                   <input id="operational-sex-ratio" type="range" min="0.5" max="1.5" step="0.01" value="1.00">
                   <span class="range-ends"><span>0.50</span><span>1.50</span></span>
+                  <small class="range-help">A dimensionless study annotation centered at 1.00; its substantive definition must come from a future sampling protocol.</small>
                 </label>
               </fieldset>
             </details>
@@ -346,7 +372,7 @@
                 id="shape-canvas"
                 width="960"
                 height="720"
-                aria-label="Aligned 68-point configurations and descriptive residual vectors"
+                aria-label="Aligned 68-point configurations, proportional warp, and descriptive residual vectors"
               ></canvas>
               <div id="canvas-empty" class="canvas-empty">
                 <span class="canvas-empty__index">68 × 2</span>
@@ -359,10 +385,15 @@
                 <span><i class="legend-line legend-line--input"></i>Input</span>
                 <span><i class="legend-line legend-line--reference"></i>Simulated consensus</span>
                 <span><i class="legend-line legend-line--residual"></i>Residual</span>
+                <span><i class="legend-fill legend-fill--warp"></i>Proportion warp</span>
               </div>
+              <label class="warp-toggle" for="show-warp">
+                <input id="show-warp" type="checkbox" checked>
+                <span>Show proportional warp</span>
+              </label>
               <details class="method-note">
                 <summary>Reading the plot</summary>
-                <p>Configurations are centered, scaled, and aligned. Arrows are mathematical residuals—not recommendations.</p>
+                <p>The violet surface deforms the input landmarks along amplified residual vectors so proportional differences are easier to see. The image preview is never warped, and arrows remain mathematical residuals—not recommendations.</p>
               </details>
             </div>
           </section>
@@ -383,6 +414,11 @@
               <article class="metric-card"><span>Centroid size</span><strong id="metric-centroid">—</strong><small>Before normalization</small></article>
               <article class="metric-card"><span>Residual RMS</span><strong id="metric-rms">—</strong><small>Unit shape space</small></article>
             </div>
+            <section class="metric-reading" aria-labelledby="metric-reading-title">
+              <p class="section-label">Reading this run</p>
+              <h3 id="metric-reading-title">Plain-language interpretation</h3>
+              <p id="metric-interpretation">Run the analysis to receive a concise explanation of the displayed distances and residuals.</p>
+            </section>
             <section class="result-section" aria-labelledby="pca-title">
               <div class="result-section__heading"><h3 id="pca-title">Tangent PCA</h3><span id="tangent-dimension">132 dimensions</span></div>
               <div id="pca-bars" class="pca-bars"><p class="empty-copy">Component scores will appear here.</p></div>
@@ -420,7 +456,10 @@
               and reports distances against a structured simulated covariance model.
             </p>
           </div>
-          <a class="button button--secondary" href="./docs/mathematical_theory.md">Open full derivations</a>
+          <div class="method-actions">
+            <a class="button button--secondary" href="./docs/mathematical_theory.md">Open derivations</a>
+            <a class="button button--primary" href="./docs/bio_social_aesthetic_manifold_apa_report.pdf">Read 27-page APA report</a>
+          </div>
         </div>
 
         <section class="pipeline" aria-label="Morphometric pipeline">
@@ -443,6 +482,43 @@
             <h2>Regularized Mahalanobis distance</h2>
             <div class="equation" aria-label="Mahalanobis distance equation">D<sub>M</sub> = √(δᵀΣ̂<sup>−1</sup>δ)</div>
             <p>The simulated covariance is shrunk toward its diagonal and stabilized with a small ridge.</p>
+          </section>
+          <section class="surface equation-card">
+            <p class="section-label">Local linear coordinates</p>
+            <h2>Tangent projection and PCA</h2>
+            <div class="equation" aria-label="Tangent projection equation">z = Bᵀ[y / ⟨y,m⟩ − m]</div>
+            <p>The four translation, scale, and rotation directions are removed, leaving 132 coordinates. PCA then rotates these coordinates toward the principal axes of simulated variation.</p>
+          </section>
+          <section class="surface equation-card">
+            <p class="section-label">Visible proportional deformation</p>
+            <h2>Residual warp</h2>
+            <div class="equation" aria-label="Residual warp equation">W<sub>j</sub>(s) = Y<sub>j</sub> + s(M<sub>j</sub> − Y<sub>j</sub>)</div>
+            <p>The scale s changes only the canvas rendering. At s = 1 the warped points meet the simulated consensus; larger values exaggerate the same descriptive direction.</p>
+          </section>
+          <section class="surface conclusion-card" aria-labelledby="analysis-conclusion-title">
+            <div class="conclusion-card__heading">
+              <div>
+                <p class="section-label">Current run</p>
+                <h2 id="analysis-conclusion-title">Descriptive conclusion</h2>
+              </div>
+              <span id="conclusion-source" class="state-label">Preparing</span>
+            </div>
+            <p id="analysis-conclusion">The current synthetic configuration will be summarized after the local calculation finishes.</p>
+            <p class="conclusion-boundary">This conclusion concerns coordinate geometry only. No uploaded photograph is analyzed or blended.</p>
+          </section>
+          <section class="surface blend-card">
+            <p class="section-label">Synthetic blend definition</p>
+            <h2>What is actually blended?</h2>
+            <div class="equation" aria-label="Synthetic blend equation">Z<sub>blend</sub> = preshape(0.55A + 0.45B)</div>
+            <p>Blend is a landmark-by-landmark combination of two synthetic templates, followed by centering, unit-size normalization, and a deterministic simulated perturbation. It is a teaching configuration, not a merged image or estimated population mean.</p>
+          </section>
+          <section class="surface report-card" aria-labelledby="report-title">
+            <div>
+              <p class="section-label">Technical report</p>
+              <h2 id="report-title">Calculation record and literature foundation</h2>
+              <p>The 27-page APA-style report documents every transformation, the pooled Blend example, covariance regularization, diagnostics, reproducibility, interpretation limits, and references.</p>
+            </div>
+            <a class="button button--primary" href="./docs/bio_social_aesthetic_manifold_apa_report.pdf">Open the report <span aria-hidden="true">→</span></a>
           </section>
           <section class="surface index-card">
             <div class="surface-head">
@@ -490,6 +566,7 @@
     <footer class="site-footer">
       <div><strong>Shape Manifold Laboratory</strong><span>NumPy and SciPy execute locally through Pyodide.</span></div>
       <nav aria-label="Project documentation">
+        <a href="./docs/bio_social_aesthetic_manifold_apa_report.pdf">APA report</a>
         <a href="./docs/mathematical_theory.md">Mathematical theory</a>
         <a href="./README.md">Repository guide</a>
       </nav>

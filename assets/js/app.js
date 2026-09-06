@@ -21,6 +21,21 @@ const LANDMARK_PATHS = [
   { start: 60, end: 67, closed: true },
 ];
 
+const WARP_FACE_PATH = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+  26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+];
+
+const WARP_MESH_CONNECTIONS = [
+  [0, 17], [2, 18], [4, 21], [5, 36], [6, 41], [7, 31],
+  [8, 30], [9, 35], [10, 46], [11, 42], [12, 22], [14, 25], [16, 26],
+  [17, 36], [18, 37], [19, 27], [20, 38], [21, 39],
+  [22, 42], [23, 47], [24, 27], [25, 44], [26, 45],
+  [27, 31], [27, 35], [30, 48], [30, 54], [31, 48], [35, 54],
+  [36, 31], [39, 31], [42, 35], [45, 35],
+  [48, 5], [48, 7], [54, 9], [54, 11], [57, 8], [33, 51], [33, 57],
+];
+
 const state = {
   pyodide: null,
   runtimeReady: false,
@@ -78,6 +93,7 @@ function cacheInterface() {
   ui.exportButton = getElement("export-button");
   ui.referencePopulation = getElement("reference-population");
   ui.vectorScale = getElement("vector-scale");
+  ui.showWarp = getElement("show-warp");
   ui.landmarkFile = getElement("landmark-file");
   ui.dropZone = getElement("drop-zone");
   ui.fileState = getElement("file-state");
@@ -94,6 +110,9 @@ function cacheInterface() {
   ui.metricMahalanobis = getElement("metric-mahalanobis");
   ui.metricCentroid = getElement("metric-centroid");
   ui.metricRms = getElement("metric-rms");
+  ui.metricInterpretation = getElement("metric-interpretation");
+  ui.conclusionSource = getElement("conclusion-source");
+  ui.analysisConclusion = getElement("analysis-conclusion");
   ui.gpaConverged = getElement("gpa-converged");
   ui.gpaIterations = getElement("gpa-iterations");
   ui.referenceSize = getElement("reference-size");
@@ -345,12 +364,14 @@ function adjustPhotoZoom(nextZoom) {
 
 function beginPhotoPan(event) {
   if (!state.photoObjectUrl || event.button !== 0) return;
+  event.preventDefault();
   state.photoPointerId = event.pointerId;
   state.photoPointerStartX = event.clientX;
   state.photoPointerStartY = event.clientY;
   state.photoPanStartX = state.photoPanX;
   state.photoPanStartY = state.photoPanY;
   ui.photoStage.classList.add("is-panning");
+  ui.photoStage.focus({ preventScroll: true });
   ui.photoStage.setPointerCapture(event.pointerId);
 }
 
@@ -755,6 +776,9 @@ function resetResultDisplay() {
   ui.referenceSize.textContent = "—";
   ui.covarianceCondition.textContent = "—";
   ui.analysisState.textContent = "Not run";
+  ui.metricInterpretation.textContent = "Run the analysis to receive a concise explanation of the displayed distances and residuals.";
+  ui.conclusionSource.textContent = state.currentSource || "Preparing";
+  ui.analysisConclusion.textContent = "The current synthetic configuration will be summarized after the local calculation finishes.";
   ui.pcaBars.replaceChildren();
   const message = document.createElement("p");
   message.className = "empty-copy";
@@ -786,6 +810,37 @@ function renderResult(result) {
     result.tangent_space.pca_scores,
     result.tangent_space.pca_explained_variance_ratio
   );
+  renderRunNarrative(result);
+}
+
+function renderRunNarrative(result) {
+  const source = state.currentSource || "The loaded configuration";
+  const reference = formatReferenceKey(result.reference.key);
+  const partial = formatMetric(result.distances.partial_procrustes);
+  const mahalanobis = formatMetric(result.distances.regularized_mahalanobis, 3);
+  const residualRms = formatMetric(
+    result.residual_shape_difference.root_mean_square_magnitude
+  );
+  const firstVariance = Number(
+    result.tangent_space.pca_explained_variance_ratio[0] || 0
+  ) * 100;
+
+  ui.metricInterpretation.textContent =
+    `Against ${reference}, ${source} has an aligned partial Procrustes distance of ${partial} `
+    + `and a residual RMS of ${residualRms}. Smaller values indicate closer geometric agreement `
+    + `within this same simulated reference; Mahalanobis ${mahalanobis} adds covariance weighting `
+    + `but is not a percentile, probability, or rating.`;
+
+  const configurationDescription = state.currentDemo === "blend"
+    ? "The 55% A / 45% B synthetic blend"
+    : source;
+  ui.conclusionSource.textContent = source;
+  ui.analysisConclusion.textContent =
+    `${configurationDescription} was centered, scaled, and aligned to ${reference}; the reference GPA `
+    + `converged in ${result.gpa.iterations} iterations. Its partial Procrustes distance is ${partial}, `
+    + `its residual RMS is ${residualRms}, and PC1 describes ${firstVariance.toFixed(1)}% of simulated `
+    + `reference variance. These values summarize coordinate separation only and support no biological, `
+    + `clinical, identity, or aesthetic conclusion.`;
 }
 
 function renderPcaScores(scores, explainedRatios) {
@@ -922,6 +977,54 @@ function drawLandmarkConfiguration(context, points, transform, strokeStyle, poin
   context.restore();
 }
 
+function drawWarpSurface(context, points, transform) {
+  const screenPoints = points.map(transform);
+  const facePath = new Path2D();
+  WARP_FACE_PATH.forEach((pointIndex, index) => {
+    const [x, y] = screenPoints[pointIndex];
+    if (index === 0) facePath.moveTo(x, y);
+    else facePath.lineTo(x, y);
+  });
+  facePath.closePath();
+
+  const verticalCoordinates = screenPoints.map((point) => point[1]);
+  const top = Math.min(...verticalCoordinates);
+  const bottom = Math.max(...verticalCoordinates);
+  const fill = context.createLinearGradient(0, top, 0, bottom);
+  fill.addColorStop(0, "rgba(167, 139, 250, 0.13)");
+  fill.addColorStop(0.52, "rgba(78, 216, 236, 0.07)");
+  fill.addColorStop(1, "rgba(167, 139, 250, 0.16)");
+
+  context.save();
+  context.fillStyle = fill;
+  context.strokeStyle = "rgba(167, 139, 250, 0.7)";
+  context.lineWidth = 1.15;
+  context.fill(facePath);
+  context.stroke(facePath);
+
+  context.clip(facePath);
+  context.strokeStyle = "rgba(167, 139, 250, 0.18)";
+  context.lineWidth = 0.75;
+  WARP_MESH_CONNECTIONS.forEach(([startIndex, endIndex]) => {
+    const [startX, startY] = screenPoints[startIndex];
+    const [endX, endY] = screenPoints[endIndex];
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+  });
+  context.restore();
+
+  drawLandmarkConfiguration(
+    context,
+    points,
+    transform,
+    "rgba(167, 139, 250, 0.76)",
+    "rgba(190, 174, 255, 0.92)",
+    1.05
+  );
+}
+
 function drawArrow(context, start, end, transform) {
   const [startX, startY] = transform(start);
   const [endX, endY] = transform(end);
@@ -991,6 +1094,10 @@ function drawCurrentState() {
   ]);
   const transform = createScreenTransform([input, reference, vectorEndpoints], width, height);
 
+  if (ui.showWarp.checked) {
+    drawWarpSurface(context, vectorEndpoints, transform);
+  }
+
   drawLandmarkConfiguration(
     context,
     reference,
@@ -1021,7 +1128,11 @@ function drawCurrentState() {
   context.save();
   context.fillStyle = "rgba(147, 165, 184, 0.86)";
   context.font = "12px SFMono-Regular, Consolas, monospace";
-  context.fillText(`Residual vectors ×${vectorScale}`, 18, 25);
+  context.fillText(
+    `${ui.showWarp.checked ? "Proportion warp + " : ""}residual vectors ×${vectorScale}`,
+    18,
+    25
+  );
   context.restore();
 }
 
@@ -1105,6 +1216,7 @@ function bindInterfaceEvents() {
   ui.photoStage.addEventListener("pointerup", endPhotoPan);
   ui.photoStage.addEventListener("pointercancel", endPhotoPan);
   ui.photoStage.addEventListener("keydown", handlePhotoStageKeydown);
+  ui.photoPreview.addEventListener("dragstart", (event) => event.preventDefault());
 
   ["dragenter", "dragover"].forEach((eventName) => {
     ui.photoStage.addEventListener(eventName, (event) => {
@@ -1135,6 +1247,7 @@ function bindInterfaceEvents() {
     if (state.runtimeReady && state.currentLandmarks) runAnalysis();
   });
   ui.vectorScale.addEventListener("change", drawCurrentState);
+  ui.showWarp.addEventListener("change", drawCurrentState);
   ui.retryRuntime.addEventListener("click", initializeRuntime);
 
   ui.landmarkFile.addEventListener("change", () => {

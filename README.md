@@ -6,6 +6,9 @@ morphometrics. The application uses iterative Generalized Procrustes Analysis
 and shrinkage-regularized Mahalanobis distance to compare a 68-point landmark
 configuration with explicitly simulated reference data.
 
+The complete, page-controlled methods record is available as a
+[27-page APA-style technical report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
+
 ## Scientific scope
 
 This repository implements a **synthetic demonstration**, not a biometric
@@ -32,8 +35,8 @@ aesthetic response is operationalized by the software.
 
 - Runs NumPy and SciPy locally through WebAssembly using Pyodide.
 - Opens with an interactive photo-confirmation workspace supporting drag and
-  drop, zoom, panning, 90-degree rotation, replacement, removal, and image
-  metadata.
+  drop, full-surface panning (including direct dragging on the image), zoom,
+  90-degree rotation, replacement, removal, and image metadata.
 - Uses the project's shared dark scientific design language: Inter interface
   text, Georgia display accents, cyan/amber highlights, wide desktop panels,
   and a safe-area-aware bottom navigation bar on phones.
@@ -50,7 +53,10 @@ aesthetic response is operationalized by the software.
 - Estimates a structured covariance matrix using diagonal-target shrinkage and
   a small numerical ridge.
 - Computes partial/full Procrustes and regularized Mahalanobis distances.
-- Draws input, consensus, and descriptive residual vectors on an HTML canvas.
+- Draws input, consensus, descriptive residual vectors, and an optional
+  proportional warp mesh on an HTML canvas.
+- Explains Sample A, Sample B, Blend, every displayed metric, and the current
+  run in plain language within the interface.
 - Exports the analysis and study-context metadata as JSON.
 - Deploys as a static GitHub Pages application without a server or database.
 
@@ -63,7 +69,9 @@ bio-social-aesthetic-manifold/
 │   ├── css/main.css               # Responsive scientific interface
 │   └── js/app.js                  # Pyodide bridge and canvas renderer
 ├── core/analytics.py              # NumPy/SciPy statistical engine
+├── docs/bio_social_aesthetic_manifold_apa_report.pdf # 27-page report
 ├── docs/mathematical_theory.md    # Detailed mathematical specification
+├── scripts/build_apa_report.py    # Reproducible report generator
 ├── index.html                     # Application entry point
 └── README.md                      # Architecture and literature guide
 ```
@@ -73,7 +81,23 @@ The primary implementation files are
 [`assets/css/main.css`](assets/css/main.css),
 [`assets/js/app.js`](assets/js/app.js), and
 [`core/analytics.py`](core/analytics.py). The extended derivations are in
-[`docs/mathematical_theory.md`](docs/mathematical_theory.md).
+[`docs/mathematical_theory.md`](docs/mathematical_theory.md), and the
+page-controlled implementation narrative is in the
+[APA report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
+
+## Built-in research inputs
+
+- **Sample A** is one deterministic simulated configuration generated around
+  Synthetic Template A with seed 90011.
+- **Sample B** is a separate deterministic simulated configuration generated
+  around the deliberately altered Synthetic Template B with seed 90021.
+- **Blend** starts from a landmark-wise 55% Template A and 45% Template B
+  combination, is centered and normalized, and then receives a new simulated
+  perturbation with seed 90031.
+
+These controls never blend the selected photo. The reference selector is also
+separate: it chooses whether distances and covariance are calculated against
+Reference A, Reference B, or the pooled 320-configuration reference.
 
 ## Runtime architecture
 
@@ -132,6 +156,23 @@ npx --yes serve .
 ```
 
 Use the local URL printed by the command.
+
+### Rebuild the 27-page report
+
+The checked-in PDF is ready to read without installing anything. To reproduce
+it from the current analytics engine, install the authoring dependencies and
+run the page-controlled builder from the repository root:
+
+```bash
+python -m pip install numpy scipy reportlab pypdf
+python scripts/build_apa_report.py
+```
+
+The builder recalculates the worked Blend example, refuses to continue if its
+verified results drift, checks that the output contains exactly 27 pages, and
+prints the finished file's SHA-256 digest. It embeds a Times-compatible serif
+font when available and uses ReportLab's bundled portable font family as a
+fallback.
 
 ## Input formats
 
@@ -406,9 +447,11 @@ Serve the site and confirm that:
 3. the runtime completes all three initialization stages;
 4. each built-in sample produces 132 tangent coordinates and 68 residuals;
 5. changing Reference A/B/Pooled recomputes the metrics;
-6. changing residual display scale changes only the drawing;
-7. malformed image or coordinate files produce a readable error;
-8. exported JSON marks the reference as simulated and context as
+6. changing the warp/residual display scale changes only the drawing;
+7. dragging from either the image pixels or the surrounding stage pans the
+   preview and does not trigger native browser image dragging;
+8. malformed image or coordinate files produce a readable error;
+9. exported JSON marks the reference as simulated and context as
    `annotation_only`.
 
 The engine has also been checked for translation, uniform-scale, and

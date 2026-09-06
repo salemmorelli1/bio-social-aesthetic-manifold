@@ -14,6 +14,10 @@ architecturally separate from this mathematical pipeline: image pixels and
 image metadata are not passed to Python, used to obtain landmarks, or joined
 to any statistical result.
 
+A page-controlled, 27-page APA-style explanation of the implementation and a
+worked synthetic example is available in the
+[technical report](./bio_social_aesthetic_manifold_apa_report.pdf).
+
 The central object is a two-dimensional landmark configuration
 
 \[
@@ -329,6 +333,16 @@ The interface may magnify arrows by a display factor of \(1\), \(3\), or
 statistic. The vectors describe the coordinate difference between two aligned
 configurations; they are not recommendations to alter an observed object.
 
+### 9.1 Proportional warp display
+
+The optional violet warp uses the same residual field to draw the displaced
+configuration `W_j(s) = Y_j + s(M_j - Y_j)`. At `s = 1`, the warped landmarks
+coincide with the simulated reference consensus. Values greater than one
+extrapolate in the same direction so small proportional differences are
+visible. The warp and its mesh exist only on the shape-space canvas. They do
+not modify an image, change coordinates sent to the engine, or change any
+reported metric.
+
 ## 10. Gradient identity and why optimization is omitted
 
 For a fixed positive-definite covariance matrix, the gradient of squared
@@ -434,12 +448,35 @@ They are exported under `study_context_metadata` with
 Mahalanobis distance, or residual calculations. No causal or associational
 claim is made about them.
 
+The Environmental Stress and Pathogen Prevalence controls are generic 0-to-1
+researcher-defined codes. The Operational Sex Ratio control is a dimensionless
+annotation centered at 1.00; any empirical study would have to define its
+numerator, denominator, sampling window, and target population before it could
+be analyzed. Moving any of these controls changes exported metadata only.
+
+## 14. Demonstration inputs
+
+Three built-in inputs make the pipeline inspectable without personal data:
+
+- **Sample A** is the first configuration from a deterministic structured
+  simulation around Synthetic Template A (seed 90011).
+- **Sample B** is the first configuration from a separate deterministic
+  simulation around the deliberately altered Synthetic Template B (seed
+  90021).
+- **Blend** starts from `preshape(0.55 A + 0.45 B)`, then receives a new
+  deterministic structured perturbation (seed 90031).
+
+Thus, Blend combines corresponding synthetic landmark coordinates. It never
+combines, transforms, or analyzes uploaded photographs. The selected simulated
+reference is a separate choice: Reference A and Reference B each contain 160
+configurations, while Pooled A + B contains 320.
+
 To analyze context scientifically, a future study would need a defined target
 population, measurement protocol, sampling frame, repeated-rater structure,
 predeclared estimand, hierarchical model, uncertainty propagation, and
 out-of-sample validation.
 
-## 14. Numerical safeguards
+## 15. Numerical safeguards
 
 The engine applies the following safeguards:
 
@@ -453,7 +490,7 @@ The engine applies the following safeguards:
 - JSON serialization rejects NaN and infinity;
 - deterministic seeds make every simulated reference reproducible.
 
-## 15. Invariance and limitations
+## 16. Invariance and limitations
 
 The reported shape statistics are invariant, up to floating-point error, to
 global translation, uniform scale, and proper planar rotation of the input.
