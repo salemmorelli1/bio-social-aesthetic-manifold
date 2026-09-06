@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Shape Lab">
+    <meta
+      name="description"
+      content="An interactive, local-first laboratory for image preview and synthetic geometric morphometrics using GPA, tangent-space PCA, and regularized Mahalanobis distance."
+    >
+    <meta name="theme-color" content="#050a12">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    >
+    <title>Shape Manifold Laboratory</title>
+    <link rel="stylesheet" href="./assets/css/main.css">
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/pyodide/v314.0.6/full/pyodide.js"
+      crossorigin="anonymous"
+    ></script>
+    <script defer src="./assets/js/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to the workspace</a>
+
+    <header class="site-header">
+      <a class="brand" href="#main-content" aria-label="Shape Manifold Laboratory home">
+        <span class="brand-orbit" aria-hidden="true"><i></i></span>
+        <span>
+          <small>Browser-based statistical computing</small>
+          <strong>Shape Manifold Laboratory</strong>
+        </span>
+      </a>
+
+      <div class="header-status" aria-label="Application status">
+        <span class="status-pill">
+          <span id="runtime-dot" class="status-dot status-dot--loading"></span>
+          <span id="runtime-label">Runtime loading</span>
+        </span>
+        <span class="status-pill status-pill--quiet">Local-first</span>
+        <button id="open-scope" class="text-button" type="button">Research scope</button>
+      </div>
+    </header>
+
+    <div class="scope-strip" role="note">
+      <span class="scope-strip__mark" aria-hidden="true">i</span>
+      <p>
+        <strong>Synthetic demonstration.</strong> Images are displayed locally and are never analyzed.
+        Shape statistics use simulated or de-identified coordinate data only.
+      </p>
+    </div>
+
+    <nav class="view-tabs" aria-label="Laboratory views">
+      <div class="tab-list" role="tablist" aria-label="Workspace views">
+        <button
+          id="tab-photo"
+          class="view-tab is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-current="page"
+          aria-controls="photo-workspace"
+          tabindex="0"
+          data-view="photo"
+        >
+          <span class="nav-icon" aria-hidden="true">▧</span>
+          <span class="nav-label">Photo preview</span>
+        </button>
+        <button
+          id="tab-lab"
+          class="view-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="shape-laboratory"
+          tabindex="-1"
+          data-view="lab"
+        >
+          <span class="nav-icon" aria-hidden="true">⌁</span>
+          <span class="nav-label">Shape laboratory</span>
+        </button>
+        <button
+          id="tab-methods"
+          class="view-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="methods-view"
+          tabindex="-1"
+          data-view="methods"
+        >
+          <span class="nav-icon" aria-hidden="true">∑</span>
+          <span class="nav-label">Methods</span>
+        </button>
+      </div>
+    </nav>
+
+    <main id="main-content">
+      <section
+        id="photo-workspace"
+        class="tab-panel is-active"
+        role="tabpanel"
+        aria-labelledby="tab-photo"
+        data-panel="photo"
+      >
+        <div class="page-intro">
+          <div>
+            <p class="eyebrow">Local image workspace</p>
+            <h1>Inspect the source <em>image clearly.</em></h1>
+            <p>
+              Add a JPG, PNG, or WebP image to preview it at full resolution.
+              Zoom, rotate, pan, replace, or remove it without sending the file anywhere.
+            </p>
+          </div>
+          <div class="privacy-badge">
+            <span aria-hidden="true">◎</span>
+            <div><strong>Preview only</strong><small>No detection or scoring</small></div>
+          </div>
+        </div>
+
+        <div class="photo-grid">
+          <section class="surface photo-card" aria-labelledby="photo-preview-title">
+            <div class="surface-head">
+              <div>
+                <p class="section-label">Image viewer</p>
+                <h2 id="photo-preview-title">Photo preview</h2>
+              </div>
+              <span id="photo-state" class="state-label">No image</span>
+            </div>
+
+            <div class="photo-toolbar" aria-label="Photo controls">
+              <label class="button button--primary" for="photo-file">
+                <span aria-hidden="true">＋</span>
+                <span id="photo-upload-label">Choose image</span>
+              </label>
+              <input
+                id="photo-file"
+                class="visually-hidden"
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+              >
+              <button id="photo-fit" class="tool-button" type="button" disabled>Fit</button>
+              <button id="photo-rotate-left" class="tool-button" type="button" disabled aria-label="Rotate image left">↶</button>
+              <button id="photo-rotate-right" class="tool-button" type="button" disabled aria-label="Rotate image right">↷</button>
+              <label class="zoom-control" for="photo-zoom">
+                <span>Zoom</span>
+                <input id="photo-zoom" type="range" min="0.5" max="3" step="0.05" value="1" disabled>
+                <output id="photo-zoom-value" for="photo-zoom">100%</output>
+              </label>
+              <button id="photo-remove" class="tool-button tool-button--danger" type="button" disabled>Remove</button>
+            </div>
+
+            <div
+              id="photo-stage"
+              class="photo-stage"
+              tabindex="0"
+              aria-label="Photo preview area. Drop an image here or use Choose image."
+            >
+              <label id="photo-empty" class="photo-empty" for="photo-file">
+                <span class="photo-empty__graphic" aria-hidden="true"><i></i><i></i><i></i></span>
+                <strong>Drop an image here</strong>
+                <span>or choose a JPG, PNG, or WebP file</span>
+                <small>Maximum file size: 20 MB</small>
+              </label>
+
+              <div id="photo-viewer" class="photo-viewer" hidden>
+                <img id="photo-preview" alt="Locally selected preview">
+                <div id="photo-drop-overlay" class="photo-drop-overlay" aria-hidden="true">
+                  <strong>Release to replace the image</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="photo-meta" aria-live="polite">
+              <span><small>File</small><strong id="photo-name">—</strong></span>
+              <span><small>Dimensions</small><strong id="photo-dimensions">—</strong></span>
+              <span><small>Size</small><strong id="photo-size">—</strong></span>
+              <span><small>Processing</small><strong id="photo-processing">Local preview</strong></span>
+            </div>
+          </section>
+
+          <aside class="photo-side">
+            <section class="surface guide-card">
+              <p class="section-label">Quick start</p>
+              <h2>From image to research data</h2>
+              <ol class="step-list">
+                <li class="is-current">
+                  <span>1</span>
+                  <div><strong>Preview the image</strong><p>Confirm orientation and image quality locally.</p></div>
+                </li>
+                <li>
+                  <span>2</span>
+                  <div><strong>Prepare coordinates separately</strong><p>Use an approved research workflow to create 68 ordered landmarks.</p></div>
+                </li>
+                <li>
+                  <span>3</span>
+                  <div><strong>Open the shape lab</strong><p>Analyze synthetic or de-identified coordinates descriptively.</p></div>
+                </li>
+              </ol>
+              <button id="open-lab" class="button button--secondary button--full" type="button">
+                Continue to shape laboratory <span aria-hidden="true">→</span>
+              </button>
+            </section>
+
+            <section class="surface boundary-card" aria-labelledby="boundary-title">
+              <div class="boundary-card__icon" aria-hidden="true">◇</div>
+              <div>
+                <p class="section-label">Analysis boundary</p>
+                <h2 id="boundary-title">The photo stays separate.</h2>
+                <p>
+                  This viewer does not detect a face, extract landmarks, infer identity or demographics,
+                  evaluate appearance, or connect the image to statistical results.
+                </p>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section
+        id="shape-laboratory"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-lab"
+        data-panel="lab"
+        hidden
+      >
+        <div class="page-intro page-intro--compact">
+          <div>
+            <p class="eyebrow">Synthetic geometric morphometrics</p>
+            <h1>Explore shape space, <em>not appearance.</em></h1>
+            <p>
+              Select a simulated sample or load a de-identified 68×2 coordinate matrix.
+              Every result is a descriptive comparison with simulated data.
+            </p>
+          </div>
+          <div class="lab-readiness"><small>Analysis configuration</small><strong id="configuration-state">Waiting</strong></div>
+        </div>
+
+        <div class="lab-grid">
+          <section class="surface controls-panel" aria-labelledby="controls-title">
+            <div class="surface-head">
+              <div><p class="section-label">Configuration</p><h2 id="controls-title">Research input</h2></div>
+              <span class="step-count">1 / 3</span>
+            </div>
+
+            <div class="control-group">
+              <span class="control-label">Built-in simulated sample</span>
+              <div class="segmented-control" role="group" aria-label="Simulated configurations">
+                <button type="button" class="segment is-active" data-demo="a">Sample A</button>
+                <button type="button" class="segment" data-demo="b">Sample B</button>
+                <button type="button" class="segment" data-demo="blend">Blend</button>
+              </div>
+            </div>
+
+            <div class="divider"><span>or use coordinates</span></div>
+
+            <div class="control-group">
+              <label id="upload-label" class="control-label" for="landmark-file">De-identified landmark matrix</label>
+              <label
+                id="drop-zone"
+                class="coordinate-drop-zone"
+                for="landmark-file"
+                tabindex="0"
+                role="button"
+                aria-describedby="upload-help file-state"
+              >
+                <span class="upload-icon" aria-hidden="true">↥</span>
+                <span><strong>Choose or drop coordinates</strong><small id="upload-help">JSON, CSV, or TXT · 68 × 2</small></span>
+              </label>
+              <input
+                id="landmark-file"
+                class="visually-hidden"
+                type="file"
+                accept=".json,.csv,.txt,application/json,text/csv,text/plain"
+              >
+              <p id="file-state" class="file-state">Using built-in Synthetic Sample A.</p>
+            </div>
+
+            <div class="control-grid">
+              <label class="field-label" for="reference-population">
+                Simulated reference
+                <select id="reference-population">
+                  <option value="pooled" selected>Pooled A + B</option>
+                  <option value="a">Reference A</option>
+                  <option value="b">Reference B</option>
+                </select>
+              </label>
+              <label class="field-label" for="vector-scale">
+                Residual display
+                <select id="vector-scale">
+                  <option value="1">1× literal</option>
+                  <option value="3" selected>3× visible</option>
+                  <option value="6">6× amplified</option>
+                </select>
+              </label>
+            </div>
+
+            <details class="context-disclosure">
+              <summary>
+                <span><strong>Study-context annotations</strong><small>Export metadata only</small></span>
+                <span aria-hidden="true">＋</span>
+              </summary>
+              <fieldset class="context-fieldset">
+                <legend class="visually-hidden">Study-context metadata</legend>
+                <p class="fieldset-note">These values never alter a statistic.</p>
+                <label class="range-field" for="environmental-stress">
+                  <span>Environmental Stress Index</span>
+                  <output id="environmental-stress-value" for="environmental-stress">0.35</output>
+                  <input id="environmental-stress" type="range" min="0" max="1" step="0.01" value="0.35">
+                  <span class="range-ends"><span>0</span><span>1</span></span>
+                </label>
+                <label class="range-field" for="pathogen-prevalence">
+                  <span>Pathogen Prevalence Index</span>
+                  <output id="pathogen-prevalence-value" for="pathogen-prevalence">0.20</output>
+                  <input id="pathogen-prevalence" type="range" min="0" max="1" step="0.01" value="0.20">
+                  <span class="range-ends"><span>0</span><span>1</span></span>
+                </label>
+                <label class="range-field" for="operational-sex-ratio">
+                  <span>Operational Sex Ratio</span>
+                  <output id="operational-sex-ratio-value" for="operational-sex-ratio">1.00</output>
+                  <input id="operational-sex-ratio" type="range" min="0.5" max="1.5" step="0.01" value="1.00">
+                  <span class="range-ends"><span>0.50</span><span>1.50</span></span>
+                </label>
+              </fieldset>
+            </details>
+
+            <button id="analyze-button" class="button button--primary button--full" type="button" disabled>
+              Run descriptive analysis <span aria-hidden="true">→</span>
+            </button>
+          </section>
+
+          <section class="surface visualization-panel" aria-labelledby="visualization-title">
+            <div class="surface-head">
+              <div><p class="section-label">Shape-space view</p><h2 id="visualization-title">Aligned configuration</h2></div>
+              <p id="source-label" class="source-label">Synthetic Sample A</p>
+            </div>
+            <div id="canvas-shell" class="canvas-shell">
+              <canvas
+                id="shape-canvas"
+                width="960"
+                height="720"
+                aria-label="Aligned 68-point configurations and descriptive residual vectors"
+              ></canvas>
+              <div id="canvas-empty" class="canvas-empty">
+                <span class="canvas-empty__index">68 × 2</span>
+                <strong>Preparing shape space</strong>
+                <span>The synthetic visualization appears when the local runtime is ready.</span>
+              </div>
+            </div>
+            <div class="plot-footer">
+              <div class="legend" aria-label="Visualization legend">
+                <span><i class="legend-line legend-line--input"></i>Input</span>
+                <span><i class="legend-line legend-line--reference"></i>Simulated consensus</span>
+                <span><i class="legend-line legend-line--residual"></i>Residual</span>
+              </div>
+              <details class="method-note">
+                <summary>Reading the plot</summary>
+                <p>Configurations are centered, scaled, and aligned. Arrows are mathematical residuals—not recommendations.</p>
+              </details>
+            </div>
+          </section>
+
+          <aside class="surface results-panel" aria-labelledby="results-title">
+            <div class="surface-head">
+              <div><p class="section-label">Output</p><h2 id="results-title">Descriptive metrics</h2></div>
+              <span id="analysis-state" class="state-label">Not run</span>
+            </div>
+            <div class="headline-metric">
+              <span>Regularized Mahalanobis</span>
+              <strong id="metric-mahalanobis">—</strong>
+              <small>Magnitude in simulated tangent covariance</small>
+            </div>
+            <div class="metric-grid">
+              <article class="metric-card"><span>Partial Procrustes</span><strong id="metric-partial">—</strong><small>Chord distance</small></article>
+              <article class="metric-card"><span>Full Procrustes</span><strong id="metric-full">—</strong><small>Scale adjusted</small></article>
+              <article class="metric-card"><span>Centroid size</span><strong id="metric-centroid">—</strong><small>Before normalization</small></article>
+              <article class="metric-card"><span>Residual RMS</span><strong id="metric-rms">—</strong><small>Unit shape space</small></article>
+            </div>
+            <section class="result-section" aria-labelledby="pca-title">
+              <div class="result-section__heading"><h3 id="pca-title">Tangent PCA</h3><span id="tangent-dimension">132 dimensions</span></div>
+              <div id="pca-bars" class="pca-bars"><p class="empty-copy">Component scores will appear here.</p></div>
+            </section>
+            <details class="diagnostics-disclosure">
+              <summary>Reference diagnostics</summary>
+              <div class="diagnostics-head"><span id="reference-key">Pooled A + B</span></div>
+              <dl class="diagnostic-list">
+                <div><dt>GPA converged</dt><dd id="gpa-converged">—</dd></div>
+                <div><dt>Iterations</dt><dd id="gpa-iterations">—</dd></div>
+                <div><dt>Reference n</dt><dd id="reference-size">—</dd></div>
+                <div><dt>Covariance condition</dt><dd id="covariance-condition">—</dd></div>
+              </dl>
+            </details>
+            <button id="export-button" class="button button--secondary button--full" type="button" disabled>Export analysis JSON</button>
+            <p class="results-footnote">Distances are descriptive magnitudes—not percentiles, probabilities, classifications, or values.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section
+        id="methods-view"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-methods"
+        data-panel="methods"
+        hidden
+      >
+        <div class="page-intro">
+          <div>
+            <p class="eyebrow">Statistical architecture</p>
+            <h1>Follow each <em>transformation.</em></h1>
+            <p>
+              The pipeline removes similarity transformations, enters a local tangent space,
+              and reports distances against a structured simulated covariance model.
+            </p>
+          </div>
+          <a class="button button--secondary" href="./docs/mathematical_theory.md">Open full derivations</a>
+        </div>
+
+        <section class="pipeline" aria-label="Morphometric pipeline">
+          <article><span>01</span><strong>Validate</strong><p>Require 68 ordered finite coordinate pairs.</p></article>
+          <article><span>02</span><strong>Normalize</strong><p>Remove translation and centroid size.</p></article>
+          <article><span>03</span><strong>Align</strong><p>Estimate proper rotations by iterative SVD GPA.</p></article>
+          <article><span>04</span><strong>Project</strong><p>Map the configuration to a 132-dimensional tangent basis.</p></article>
+          <article><span>05</span><strong>Describe</strong><p>Report PCA, covariance-aware distances, and residuals.</p></article>
+        </section>
+
+        <div class="methods-grid">
+          <section class="surface equation-card">
+            <p class="section-label">Core objective</p>
+            <h2>Generalized Procrustes Analysis</h2>
+            <div class="equation" aria-label="GPA minimization equation">min <sub>M,Rᵢ</sub> Σᵢ ‖ZᵢRᵢ − M‖²<sub>F</sub></div>
+            <p>Every synthetic reference is centered, normalized, and rotated toward an updated consensus. Reflections are prohibited.</p>
+          </section>
+          <section class="surface equation-card">
+            <p class="section-label">Covariance-aware separation</p>
+            <h2>Regularized Mahalanobis distance</h2>
+            <div class="equation" aria-label="Mahalanobis distance equation">D<sub>M</sub> = √(δᵀΣ̂<sup>−1</sup>δ)</div>
+            <p>The simulated covariance is shrunk toward its diagonal and stabilized with a small ridge.</p>
+          </section>
+          <section class="surface index-card">
+            <div class="surface-head">
+              <div><p class="section-label">Correspondence</p><h2>68-point topology</h2></div>
+              <span class="state-label">Fixed order</span>
+            </div>
+            <div class="index-map">
+              <span style="--length:17"><strong>0–16</strong>Jawline</span>
+              <span style="--length:5"><strong>17–21</strong>Right brow</span>
+              <span style="--length:5"><strong>22–26</strong>Left brow</span>
+              <span style="--length:4"><strong>27–30</strong>Nose bridge</span>
+              <span style="--length:5"><strong>31–35</strong>Nose base</span>
+              <span style="--length:6"><strong>36–41</strong>Right eye</span>
+              <span style="--length:6"><strong>42–47</strong>Left eye</span>
+              <span style="--length:12"><strong>48–59</strong>Outer lip</span>
+              <span style="--length:8"><strong>60–67</strong>Inner lip</span>
+            </div>
+          </section>
+          <section class="surface claims-card">
+            <div>
+              <p class="section-label">Valid output</p>
+              <h2>What the application reports</h2>
+              <ul class="check-list">
+                <li>GPA convergence and alignment diagnostics</li>
+                <li>132 tangent coordinates and PCA summaries</li>
+                <li>Procrustes and regularized Mahalanobis distances</li>
+                <li>Descriptive residual shape vectors</li>
+              </ul>
+            </div>
+            <div>
+              <p class="section-label section-label--warning">Outside scope</p>
+              <h2>What it does not infer</h2>
+              <ul class="cross-list">
+                <li>Attractiveness, health, identity, or demographic category</li>
+                <li>Population percentiles or clinical interpretations</li>
+                <li>Prescriptive coordinate changes or appearance advice</li>
+                <li>Any statistic from an uploaded photo</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><strong>Shape Manifold Laboratory</strong><span>NumPy and SciPy execute locally through Pyodide.</span></div>
+      <nav aria-label="Project documentation">
+        <a href="./docs/mathematical_theory.md">Mathematical theory</a>
+        <a href="./README.md">Repository guide</a>
+      </nav>
+    </footer>
+
+    <div
+      id="runtime-modal"
+      class="runtime-modal is-visible"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="runtime-modal-title"
+      aria-describedby="runtime-modal-message"
+    >
+      <div class="runtime-card">
+        <button id="dismiss-runtime" class="modal-close" type="button" aria-label="Continue while runtime loads">×</button>
+        <div class="runtime-visual" aria-hidden="true"><span></span><span></span><i></i></div>
+        <p class="section-label">Local compute initialization</p>
+        <h2 id="runtime-modal-title">Starting the analysis runtime</h2>
+        <p id="runtime-modal-message">Preparing the WebAssembly environment.</p>
+        <ol class="runtime-steps">
+          <li data-runtime-step="wasm"><span></span>WebAssembly runtime</li>
+          <li data-runtime-step="packages"><span></span>NumPy and SciPy</li>
+          <li data-runtime-step="engine"><span></span>Morphometric engine</li>
+        </ol>
+        <div class="progress-track" aria-hidden="true"><span id="runtime-progress"></span></div>
+        <div class="runtime-actions">
+          <button id="continue-runtime" class="button button--secondary" type="button">Continue while loading</button>
+          <button id="retry-runtime" class="button button--secondary" type="button" hidden>Retry initialization</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="scope-modal" class="scope-modal" role="dialog" aria-modal="true" aria-labelledby="scope-title" hidden>
+      <div class="scope-card">
+        <button id="close-scope" class="modal-close" type="button" aria-label="Close research scope">×</button>
+        <p class="section-label">Research boundary</p>
+        <h2 id="scope-title">Descriptive and synthetic by design</h2>
+        <p>
+          The image viewer is a local confirmation surface only. The mathematical laboratory accepts
+          synthetic or de-identified coordinate matrices and compares them with explicitly simulated references.
+        </p>
+        <dl>
+          <div><dt>Image transfer</dt><dd>None</dd></div>
+          <div><dt>Photo analysis</dt><dd>None</dd></div>
+          <div><dt>Reference data</dt><dd>Simulated</dd></div>
+          <div><dt>Output type</dt><dd>Descriptive geometry</dd></div>
+        </dl>
+        <button id="acknowledge-scope" class="button button--primary button--full" type="button">Understood</button>
+      </div>
+    </div>
+
+    <div id="live-region" class="visually-hidden" role="status" aria-live="polite"></div>
+  </body>
+</html>
