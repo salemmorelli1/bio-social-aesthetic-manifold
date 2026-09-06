@@ -473,7 +473,7 @@
             <div>
               <p class="section-label">Local image deformation</p>
               <h2 id="photo-warp-title">Photo warp</h2>
-              <p>Piecewise-affine texture rendering from the detected 68-point mesh to the selected simulated consensus.</p>
+              <p>Piecewise-affine texture rendering from the detected 68-point mesh to the selected simulated consensus, with optional source-to-destination arrows.</p>
             </div>
             <span id="photo-warp-state" class="state-label">Waiting for photo</span>
           </div>
@@ -483,13 +483,19 @@
               <button type="button" class="segment is-active" data-photo-warp-mode="split">Split</button>
               <button type="button" class="segment" data-photo-warp-mode="warped">Warped</button>
             </div>
-            <label class="warp-toggle" for="show-photo-mesh">
-              <input id="show-photo-mesh" type="checkbox">
-              <span>Show triangulation mesh</span>
-            </label>
+            <div class="photo-warp-overlays" role="group" aria-label="Photo warp overlays">
+              <label class="warp-toggle" for="show-photo-vectors">
+                <input id="show-photo-vectors" type="checkbox" checked>
+                <span>Show displacement vectors</span>
+              </label>
+              <label class="warp-toggle" for="show-photo-mesh">
+                <input id="show-photo-mesh" type="checkbox">
+                <span>Show triangulation mesh</span>
+              </label>
+            </div>
           </div>
           <div class="photo-warp-stage">
-            <canvas id="photo-warp-canvas" width="1200" height="900" aria-label="Original and locally warped photo comparison"></canvas>
+            <canvas id="photo-warp-canvas" width="1200" height="900" aria-label="Original and locally warped photo comparison with optional displacement overlays"></canvas>
             <div id="photo-warp-empty" class="photo-warp-empty">
               <span aria-hidden="true">68 × 2</span>
               <strong>Upload a photo, then choose local analysis</strong>

@@ -60,7 +60,8 @@ aesthetic response is operationalized by the software.
 - Draws input, consensus, descriptive residual vectors, and an optional
   proportional warp mesh on an HTML canvas.
 - Applies those residuals to photo texture with a bounded, piecewise-affine
-  Delaunay-triangle warp, shown as Original, Split, or Warped.
+  Delaunay-triangle warp, shown as Original, Split, or Warped, with
+  independently switchable displacement arrows and triangulation mesh.
 - Displays a neutral 0–10 Geometric Displacement Index with fixed mathematical
   endpoints and an explicit non-normative interpretation.
 - Explains Sample A, Sample B, Blend, every displayed metric, and the current
@@ -137,8 +138,9 @@ flowchart TB
 6. JavaScript calls `run_pipeline_from_js()` and parses its JSON result.
 7. For a photo-derived configuration, unit-shape residuals are restored to
    pixels with the input centroid size and applied by a piecewise-affine mesh.
-8. The browser renders aligned configurations, residual vectors, the neutral
-   displacement index, distance statistics, PCA scores, and GPA diagnostics.
+8. The browser renders aligned configurations, optional source-to-destination
+   arrows over the photo warp, the neutral displacement index, distance
+   statistics, PCA scores, and GPA diagnostics.
 9. Neither images nor coordinate data are transmitted to an application
    server.
 
@@ -506,8 +508,8 @@ Serve the site and confirm that:
 7. the Geometric Displacement Index equals
    \(10\min(1,d_P/\sqrt2)\) and is unchanged by context sliders;
 8. after explicit local photo analysis, Original/Split/Warped modes display a
-   texture render and changing the visualization scale redraws it without
-   changing any metric;
+   texture render; the vector and mesh switches work independently; and
+   changing the visualization scale redraws it without changing any metric;
 9. dragging from either the image pixels or the surrounding stage pans the
    preview and does not trigger native browser image dragging;
 10. malformed image or coordinate files produce a readable error;

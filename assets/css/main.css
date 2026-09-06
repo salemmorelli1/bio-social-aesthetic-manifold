@@ -3925,6 +3925,14 @@ main {
   width: min(100%, 25rem);
 }
 
+.photo-warp-overlays {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem 1.15rem;
+}
+
 .photo-warp-stage {
   position: relative;
   display: grid;
@@ -4040,6 +4048,10 @@ main {
 
   .photo-warp-toolbar .segmented-control {
     width: 100%;
+  }
+
+  .photo-warp-overlays {
+    justify-content: flex-start;
   }
 
   .photo-warp-stage {

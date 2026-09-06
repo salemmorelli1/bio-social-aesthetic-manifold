@@ -452,6 +452,70 @@ function drawLandmarkOverlay(context, points, triangles) {
   context.restore();
 }
 
+function drawDisplacementVectorOverlay(context, sourcePoints, destinationPoints) {
+  const source = sourcePoints.slice(0, 68);
+  const destination = destinationPoints.slice(0, 68);
+  const lineWidth = Math.max(1.25, context.canvas.width / 960);
+  const outlineWidth = lineWidth + Math.max(1.4, context.canvas.width / 900);
+  const endpointRadius = Math.max(1.8, context.canvas.width / 720);
+  const visibleVectors = source.map((point, index) => {
+    const target = destination[index];
+    const dx = target[0] - point[0];
+    const dy = target[1] - point[1];
+    return { point, target, dx, dy, length: Math.hypot(dx, dy) };
+  }).filter((vector) => vector.length >= 0.75);
+
+  const drawVectorPath = ({ point, target, dx, dy, length }) => {
+    const directionX = dx / length;
+    const directionY = dy / length;
+    const headLength = Math.min(
+      Math.max(4.5, context.canvas.width / 210),
+      Math.max(2.5, length * 0.72),
+    );
+    const headWidth = headLength * 0.55;
+    const baseX = target[0] - directionX * headLength;
+    const baseY = target[1] - directionY * headLength;
+    const perpendicularX = -directionY;
+    const perpendicularY = directionX;
+
+    context.beginPath();
+    context.moveTo(point[0], point[1]);
+    context.lineTo(target[0], target[1]);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(target[0], target[1]);
+    context.lineTo(baseX + perpendicularX * headWidth, baseY + perpendicularY * headWidth);
+    context.lineTo(baseX - perpendicularX * headWidth, baseY - perpendicularY * headWidth);
+    context.closePath();
+    context.fill();
+  };
+
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  context.strokeStyle = "rgba(2, 8, 14, 0.78)";
+  context.fillStyle = "rgba(2, 8, 14, 0.84)";
+  context.lineWidth = outlineWidth;
+  visibleVectors.forEach(drawVectorPath);
+
+  context.strokeStyle = "rgba(255, 194, 86, 0.96)";
+  context.fillStyle = "rgba(255, 194, 86, 0.98)";
+  context.lineWidth = lineWidth;
+  visibleVectors.forEach(drawVectorPath);
+
+  context.fillStyle = "rgba(85, 228, 243, 0.94)";
+  visibleVectors.forEach(({ point }) => {
+    context.beginPath();
+    context.arc(point[0], point[1], endpointRadius, 0, Math.PI * 2);
+    context.fill();
+  });
+  context.restore();
+
+  return visibleVectors.length;
+}
+
 export function buildPhotoWarpGeometry({
   sourceLandmarks,
   residualVectors,
@@ -503,6 +567,7 @@ export function renderPhotoWarp({
   scale = 1,
   mode = "split",
   showMesh = false,
+  showVectors = true,
 }) {
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error("A destination HTML canvas is required for the photo warp.");
@@ -540,12 +605,16 @@ export function renderPhotoWarp({
   warpedContext.drawImage(imageSource, 0, 0);
   drawWarpedTexture(warpedContext, imageSource, sourcePoints, destinationPoints, triangles);
   if (showMesh) drawLandmarkOverlay(warpedContext, destinationPoints, triangles);
+  const renderedVectorCount = showVectors
+    ? drawDisplacementVectorOverlay(warpedContext, landmarks, destinationPoints)
+    : 0;
 
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
   if (selectedMode === "original") {
     context.drawImage(imageSource, 0, 0);
     if (showMesh) drawLandmarkOverlay(context, sourcePoints, triangles);
+    if (showVectors) drawDisplacementVectorOverlay(context, landmarks, destinationPoints);
   } else if (selectedMode === "warped") {
     context.drawImage(warpedCanvas, 0, 0);
   } else {
@@ -592,5 +661,8 @@ export function renderPhotoWarp({
     maximumLandmarkShiftPixels: geometry.maximumLandmarkShiftPixels,
     rmsAppliedDisplacementPixels: rmsPixels,
     mode: selectedMode,
+    showMesh: Boolean(showMesh),
+    showVectors: Boolean(showVectors),
+    renderedVectorCount,
   };
 }

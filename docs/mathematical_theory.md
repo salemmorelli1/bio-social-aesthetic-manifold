@@ -377,6 +377,12 @@ line search reduces the requested displacement until every nondegenerate
 triangle retains orientation and an acceptable area ratio. These are rendering
 safeguards, not statistical estimators.
 
+The optional photo overlay draws an arrow from each observed source landmark
+\(x_j\) to its safely applied destination \(x'_j\). Arrow visibility and
+triangulation visibility are controlled independently. Hiding either overlay
+changes only the pixels drawn on the canvas; it does not recompute the warp or
+alter any statistic.
+
 ### 9.3 Geometric Displacement Index
 
 The interface reports a bounded display index

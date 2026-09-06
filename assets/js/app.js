@@ -162,6 +162,7 @@ function cacheInterface() {
   ui.photoWarpRenderScale = getElement("photo-warp-render-scale");
   ui.photoWarpTriangles = getElement("photo-warp-triangles");
   ui.photoWarpRms = getElement("photo-warp-rms");
+  ui.showPhotoVectors = getElement("show-photo-vectors");
   ui.showPhotoMesh = getElement("show-photo-mesh");
   ui.photoWarpModeButtons = Array.from(document.querySelectorAll("[data-photo-warp-mode]"));
   ui.demoButtons = Array.from(document.querySelectorAll("[data-demo]"));
@@ -1099,6 +1100,7 @@ function renderCurrentPhotoWarp() {
       scale: Number(ui.vectorScale.value),
       mode: state.photoWarpMode,
       showMesh: ui.showPhotoMesh.checked,
+      showVectors: ui.showPhotoVectors.checked,
     });
     state.photoWarpDiagnostics = diagnostics;
     ui.photoWarpEmpty.hidden = true;
@@ -1109,10 +1111,13 @@ function renderCurrentPhotoWarp() {
     const safetyNote = diagnostics.effectiveScaleFactor < 0.999
       ? ` The requested warp was reduced to ${diagnostics.appliedVisualizationScale.toFixed(2)}× to prevent triangle fold-over.`
       : "";
+    const vectorNote = diagnostics.showVectors
+      ? ` ${diagnostics.renderedVectorCount} arrows trace the rendered source-to-destination landmark shifts.`
+      : " Displacement arrows are hidden; use the overlay switch to show them.";
     ui.photoWarpCaption.textContent =
       `${state.photoWarpMode === "split" ? "Left is original; right is warped." : `Showing ${state.photoWarpMode}.`} `
       + `The texture follows ${diagnostics.triangleCount} local triangles and the RMS rendered shift is `
-      + `${diagnostics.rmsAppliedDisplacementPixels.toFixed(1)} pixels.${safetyNote} This illustrates `
+      + `${diagnostics.rmsAppliedDisplacementPixels.toFixed(1)} pixels.${vectorNote}${safetyNote} This illustrates `
       + `coordinate displacement only; it is not a recommended or improved face.`;
   } catch (error) {
     ui.photoWarpState.textContent = "Render error";
@@ -1532,6 +1537,7 @@ function bindInterfaceEvents() {
     renderCurrentPhotoWarp();
   });
   ui.showWarp.addEventListener("change", drawCurrentState);
+  ui.showPhotoVectors.addEventListener("change", renderCurrentPhotoWarp);
   ui.showPhotoMesh.addEventListener("change", renderCurrentPhotoWarp);
   ui.photoWarpModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
