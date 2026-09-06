@@ -136,8 +136,9 @@ PAGES: list[dict[str, Any]] = [
                 "This technical report documents a serverless demonstration of descriptive "
                 "geometric morphometrics implemented with NumPy and SciPy inside a Pyodide "
                 "WebAssembly runtime. The application accepts either one of three deterministic "
-                "synthetic configurations or a de-identified matrix of 68 ordered two-dimensional "
-                "landmarks. It removes translation and centroid size, aligns configurations by "
+                "synthetic configurations, a de-identified matrix, or an explicitly detected local "
+                "photo mesh sampled into 68 ordered two-dimensional landmarks. It removes translation "
+                "and centroid size, aligns configurations by "
                 "proper singular-value-decomposition rotations, constructs a 132-dimensional "
                 "Kendall tangent representation, calculates principal-component scores, and "
                 "reports Procrustes, shrinkage-regularized Mahalanobis, and residual distances."
@@ -145,20 +146,20 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "The implementation is intentionally descriptive. Reference A, Reference B, and "
                 "their pooled ensemble are simulations, not estimates of biological populations. "
-                "The photograph tab is an isolated local viewer and never supplies pixels, "
-                "landmarks, or metadata to the statistical engine. A proportional warp visualizes "
-                "the same residual coordinate field used by the numerical output, but it changes "
-                "only the canvas drawing. The worked pooled-reference Blend example yields partial "
+                "Optional photo landmarking and texture warping occur only after an explicit action "
+                "and remain in browser memory; Python receives coordinates, not pixels. A proportional "
+                "warp visualizes the same residual field used by the numerical output. The worked "
+                "pooled-reference Blend example yields partial "
                 "Procrustes distance 0.08805, full Procrustes distance 0.08797, regularized "
-                "Mahalanobis distance 8.693, and residual root mean square 0.01068. These are "
-                "uncalibrated geometric magnitudes rather than percentiles, probabilities, "
-                "classifications, or ratings."
+                "Mahalanobis distance 8.693, residual root mean square 0.01068, and Geometric "
+                "Displacement Index 0.62 of 10. These are uncalibrated geometric magnitudes rather "
+                "than percentiles, probabilities, classifications, or appearance ratings."
             ),
             heading("Keywords"),
             paragraph(
                 "geometric morphometrics, Generalized Procrustes Analysis, tangent space, "
                 "principal component analysis, covariance shrinkage, Mahalanobis distance, "
-                "WebAssembly, reproducible simulation"
+                "WebAssembly, local face landmarks, piecewise-affine warp, reproducible simulation"
             ),
         ],
     },
@@ -242,20 +243,20 @@ PAGES: list[dict[str, Any]] = [
             ),
             figure("pipeline", 126.0),
             paragraph(
-                "The image path and the coordinate path are intentionally disjoint. A selected JPG, "
-                "PNG, or WebP file receives a temporary browser object URL for viewing, panning, "
-                "zooming, and rotation. That object URL is revoked when the image is replaced, "
-                "removed, or the page closes. The JavaScript bridge never reads image pixels and "
-                "never sends the file to Python. Shape analysis begins only with a built-in synthetic "
-                "configuration or a separately supplied de-identified numeric file."
+                "A selected JPG, PNG, or WebP file receives a temporary browser object URL for viewing, "
+                "panning, zooming, and rotation. That object URL is revoked when the image is replaced, "
+                "removed, or the page closes. No detection occurs until an explicit button press. The "
+                "pinned MediaPipe task then obtains one dense mesh in browser memory and a fixed adapter "
+                "samples 68 vertices. Blendshape outputs are disabled, and pixels are never sent to "
+                "Python or an application server."
             ),
             paragraph(
                 "For an analysis, JavaScript creates a Float64Array of 136 values and assigns it to "
                 "the Pyodide global namespace. The top-level Python function validates and reshapes "
                 "the values, fits or retrieves the selected cached reference model, and returns JSON. "
-                "This architecture limits accidental coupling: the user interface can display a "
-                "photograph while the statistical result remains traceable to an independent "
-                "coordinate source."
+                "A photo-derived run uses only those 136 numbers in Python. Returned residual vectors "
+                "may drive a browser-canvas texture warp, while exports omit pixel data. Synthetic and "
+                "de-identified coordinate routes remain independent alternatives."
             ),
         ],
     },
@@ -275,10 +276,11 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "Open feature paths such as the jaw and brows are drawn without connecting their "
                 "endpoints. Eye and lip paths are closed. Coordinate files may be JSON, CSV, or "
-                "plain text, but after parsing they must contain exactly 136 finite numbers. Missing "
-                "landmarks, duplicated rows, reordered features, or a mirrored indexing scheme "
-                "change the mathematical object and therefore invalidate direct comparison "
-                "(Bookstein, 1991; Zelditch et al., 2012)."
+                "plain text, but after parsing they must contain exactly 136 finite numbers. The photo "
+                "route uses a fixed list of 68 unique MediaPipe mesh indices as an engineering "
+                "correspondence; it is not native Dlib detector output. Missing landmarks, reordered "
+                "features, or a mirrored indexing scheme change the mathematical object and therefore "
+                "invalidate direct comparison (Bookstein, 1991; Zelditch et al., 2012)."
             ),
         ],
     },
@@ -615,11 +617,11 @@ PAGES: list[dict[str, Any]] = [
                 "retains both vector components and all 68 magnitudes."
             ),
             paragraph(
-                "The arrows can be rendered at 1x, 3x, or 6x. This multiplication is performed only in "
-                "JavaScript after the Python result is returned; the RMS and every other statistic "
-                "remain unchanged. Residuals are best read as a diagnostic field showing where two "
-                "aligned coordinate systems differ. They are not suggested edits, and the engine "
-                "contains no gradient optimization or coordinate update routine."
+                "The arrows can be rendered at 1x, 3x, or 6x. For photo landmarks, multiplying the "
+                "input-orientation residual by centroid size restores pixel units before rendering. "
+                "This occurs in JavaScript after Python returns; RMS and every other statistic remain "
+                "unchanged. Residuals diagnose where aligned coordinate systems differ. They are not "
+                "suggested edits, and the engine contains no optimization routine."
             ),
         ],
     },
@@ -646,8 +648,9 @@ PAGES: list[dict[str, Any]] = [
                 "The input choice and reference choice answer different questions. Selecting Blend "
                 "chooses the configuration being analyzed. Selecting Pooled A+B chooses a reference "
                 "ensemble containing 160 A-based and 160 B-based simulated shapes. Selecting Reference "
-                "A or B changes the consensus, tangent basis, covariance, PCA axes, and distances. No "
-                "photograph is blended, landmarked, or scored by any of these controls."
+                "A or B changes the consensus, tangent basis, covariance, PCA axes, and distances. None "
+                "of these three sample buttons blends a photograph; the explicit local-photo route is "
+                "a separate input control and does not produce an appearance score."
             ),
         ],
     },
@@ -656,7 +659,7 @@ PAGES: list[dict[str, Any]] = [
         "title": "Worked Deterministic Example",
         "blocks": [
             paragraph(
-                "Table 1 records engine version 1.0.0 results for all three built-in configurations "
+                "Table 1 records engine version 1.1.0 results for all three built-in configurations "
                 "against Pooled A+B. The values were produced by run_pipeline_from_js with the fixed "
                 "seeds documented above. Rebuilding the report imports the current analytics module "
                 "and verifies the Blend values before writing the PDF."
@@ -676,7 +679,8 @@ PAGES: list[dict[str, Any]] = [
                 "Regularized Mahalanobis 8.693 is larger numerically because it measures the same "
                 "tangent displacement in standardized covariance geometry; it is not on the same scale "
                 "as a Procrustes distance. PC1 accounts for 24.7% of pooled simulated variance and the "
-                "Blend PC1 score is +0.04186."
+                "Blend PC1 score is +0.04186. Rescaling its partial distance by "
+                "10 min(1, dP / sqrt(2)) gives a Geometric Displacement Index of 0.62."
             ),
             paragraph(
                 "The only defensible conclusion is that the generated Blend differs from the pooled "
@@ -689,28 +693,28 @@ PAGES: list[dict[str, Any]] = [
     },
     {
         "number": 21,
-        "title": "Proportional Warp Visualization",
+        "title": "Landmark and Photo Texture Warp Visualization",
         "blocks": [
             paragraph(
-                "The proportional warp makes the residual field visible as a continuous-looking "
-                "landmark mesh. For scale s, every displayed warp point is Wj(s) = Yj + s(Mj - Yj). "
-                "At s = 1 the warp points equal the consensus. At 3x and 6x the same direction is "
-                "extrapolated so subtle coordinate differences become easier to inspect."
+                "The proportional warp makes the residual field visible. In aligned shape space, "
+                "Wj(s) = Yj + s(Mj - Yj). For a photo input, the residual is rotated back to input "
+                "orientation and multiplied by centroid size, giving the pixel destination "
+                "xj' = xj + s c(X) rj. The selected scale changes rendering only."
             ),
+            equation("GDI = 10 min[1, d_P / sqrt(2)]"),
             figure("warp", 205.0),
             paragraph(
-                "The translucent violet contour and mesh are rendering aids, not a new statistical "
-                "model. The mesh connections organize the 68 points into interpretable regions but do "
-                "not alter the residual calculation. In the dark web interface the input remains white; "
-                "the print figure uses black for contrast. The simulated consensus remains cyan, and "
-                "the violet outline shows the three-times residual warp."
+                "The shape-space contour and the photo texture are rendering aids, not new statistical "
+                "models. The photo renderer adds eight fixed boundary anchors, computes a Delaunay "
+                "triangulation, and uses one affine pixel map per triangle. Vertex shifts are capped at "
+                "16% of the face-box diagonal, and a line search reduces the requested scale if a "
+                "triangle would reverse orientation."
             ),
             paragraph(
-                "Changing warp scale or hiding the warp triggers only a canvas redraw. The Python "
-                "engine is not called, the input coordinates are not edited, and exported numerical "
-                "results stay identical. The photograph workspace is also unaffected. This separation "
-                "allows shape proportions to be explored without implying that a person's image should "
-                "be modified."
+                "Original, Split, and Warped views use the same locally decoded image. Pixels are not "
+                "uploaded or placed in the JSON export. Changing warp scale or mesh visibility redraws "
+                "the canvas without changing any metric. The render is a geometric comparison, not a "
+                "recommendation, prediction, improvement, or appearance evaluation."
             ),
         ],
     },
@@ -725,8 +729,9 @@ PAGES: list[dict[str, Any]] = [
                 "study_context_metadata with analytic_role equal to annotation_only."
             ),
             paragraph(
-                "Moving a slider never changes GPA, the tangent basis, PCA, covariance, distances, or "
-                "residuals. The interface says this explicitly because adding a context variable to a "
+                "Moving a slider never changes GPA, the tangent basis, PCA, covariance, distances, the "
+                "Geometric Displacement Index, or residuals. The interface says this explicitly because "
+                "adding a context variable to a "
                 "screen can otherwise create the false impression that a causal or associational model "
                 "has been fitted. The current values have no operational definition outside a future "
                 "protocol. In particular, an operational ratio would require a declared numerator, "
@@ -760,6 +765,7 @@ PAGES: list[dict[str, Any]] = [
                 "Covariance is shrunk, ridge-stabilized, symmetrized, and Cholesky-factorized.",
                 "Linear solves replace an explicitly constructed covariance inverse.",
                 "JSON serialization rejects nonfinite values, and deterministic seeds support reruns.",
+                "Photo shifts are capped and triangle orientation is protected by a scale line search.",
             ),
             paragraph(
                 "The covariance condition number is a sensitivity diagnostic rather than a pass-fail "
@@ -771,9 +777,10 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "At the web layer, the runtime modal reports WebAssembly initialization, NumPy/SciPy "
                 "loading, and analytics-module loading separately. Controls are disabled while an "
-                "analysis is running to prevent state races. Temporary Pyodide globals are deleted in "
-                "a finally block, and an analysis token prevents an obsolete asynchronous response from "
-                "overwriting a newer configuration."
+                "analysis is running to prevent state races. Photo landmarking is an explicit opt-in "
+                "action; a fixed 68-index map is validated before use. Temporary Pyodide globals are "
+                "deleted in a finally block, and an analysis token prevents an obsolete asynchronous "
+                "response from overwriting a newer configuration."
             ),
         ],
     },
@@ -794,8 +801,9 @@ PAGES: list[dict[str, Any]] = [
                 "summaries, finite JSON, and explicit simulated-reference metadata. Negative tests "
                 "cover wrong row counts, all-equal coordinates, nonfinite entries, reflection, invalid "
                 "reference names, and malformed browser files. Interface tests verify direct panning "
-                "from the image pixels, pan from surrounding stage space, fit/reset behavior, drawing "
-                "redraws, and the absence of image data from the analysis payload."
+                "from image pixels, fit/reset behavior, opt-in landmark status, 68 unique mapped mesh "
+                "indices, triangulation, Original/Split/Warped redraws, the exact index formula, and "
+                "the absence of image pixels from the Python and export payloads."
             ),
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
@@ -823,7 +831,9 @@ PAGES: list[dict[str, Any]] = [
                 "are synthetic. The system cannot estimate prevalence, group means, uncertainty for a "
                 "target population, or external validity. It assumes exact landmark correspondence and "
                 "does not model landmark acquisition error, perspective, expression, occlusion, "
-                "missingness, or repeated measurements. The fixed 20% shrinkage rule is demonstrative "
+                "missingness, or repeated measurements. The MediaPipe-to-68 adapter is approximate, "
+                "and piecewise-affine image warping can contain seams or artifacts. The fixed 20% "
+                "shrinkage rule is demonstrative "
                 "rather than data-adaptive. Tangent coordinates are local and may distort large "
                 "geodesic separations."
             ),
@@ -831,8 +841,9 @@ PAGES: list[dict[str, Any]] = [
                 "For the deterministic pooled Blend example, the conclusion is narrow: after centering, "
                 "unit scaling, and proper rotation, the synthetic Blend is separated from the pooled "
                 "synthetic consensus by partial Procrustes 0.08805 and residual RMS 0.01068, while its "
-                "covariance-weighted tangent distance is 8.693. The proportional warp visualizes this "
-                "residual direction without altering the calculation."
+                "covariance-weighted tangent distance is 8.693. Its neutral Geometric Displacement "
+                "Index is 0.62 of 10. The proportional warp visualizes this residual direction without "
+                "altering the calculation; none of these values evaluates appearance."
             ),
             paragraph(
                 "Accordingly, the project should be used as an educational and engineering foundation. "
@@ -898,6 +909,11 @@ PAGES: list[dict[str, Any]] = [
         "number": 27,
         "title": "References (continued)",
         "blocks": [
+            reference(
+                "Google. (n.d.). Face Landmarker for Web. Google AI Edge. Retrieved "
+                "September 6, 2026, from https://ai.google.dev/edge/mediapipe/solutions/"
+                "vision/face_landmarker/web_js"
+            ),
             reference(
                 "Jolliffe, I. T. (2002). Principal component analysis (2nd ed.). Springer. "
                 "https://doi.org/10.1007/b98835"
@@ -1000,7 +1016,7 @@ def draw_footer(pdf: canvas.Canvas) -> None:
     pdf.drawCentredString(
         PAGE_WIDTH / 2,
         38,
-        "Synthetic demonstration - image pixels are not analyzed.",
+        "Local geometric demonstration - no appearance or personal inference.",
     )
 
 
@@ -1205,7 +1221,7 @@ def draw_configuration(
 
 def draw_pipeline_figure(pdf: canvas.Canvas, y: float, height: float) -> None:
     labels = [
-        ("1", "Validate", "68 x 2 finite values"),
+        ("1", "Acquire", "local 68 x 2 values"),
         ("2", "Normalize", "center and unit scale"),
         ("3", "Align", "proper SVD rotations"),
         ("4", "Project", "132 tangent values"),
@@ -1371,6 +1387,13 @@ def verify_worked_example() -> None:
             raise RuntimeError(
                 f"Worked example drift for {key}: {observed} != {expected_value}"
             )
+    observed_index = float(result["geometric_displacement_index"]["value"])
+    expected_index = 10.0 * min(1.0, expected["partial_procrustes"] / np.sqrt(2.0))
+    if not np.isclose(observed_index, expected_index, rtol=0.0, atol=1e-12):
+        raise RuntimeError(
+            f"Worked example drift for geometric displacement index: "
+            f"{observed_index} != {expected_index}"
+        )
 
 
 def build_report() -> None:
@@ -1384,10 +1407,10 @@ def build_report() -> None:
     pdf.setAuthor("Salem Morelli")
     pdf.setSubject(
         "Generalized Procrustes Analysis, tangent PCA, covariance regularization, "
-        "Mahalanobis distance, residual warping, and reproducible browser computing"
+        "Mahalanobis distance, local photo warping, and reproducible browser computing"
     )
     pdf.setKeywords(
-        "geometric morphometrics, GPA, tangent space, PCA, Mahalanobis, WebAssembly"
+        "geometric morphometrics, GPA, tangent space, PCA, Mahalanobis, photo warp, WebAssembly"
     )
 
     draw_title_page(pdf)

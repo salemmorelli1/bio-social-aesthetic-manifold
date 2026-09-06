@@ -3768,6 +3768,330 @@ main {
   }
 }
 
+/* Local photo analysis and texture-warp workspace */
+.photo-analysis-control {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(85, 228, 243, 0.24);
+  border-radius: 0.95rem;
+  background:
+    radial-gradient(circle at 8% 5%, rgba(85, 228, 243, 0.1), transparent 38%),
+    rgba(3, 9, 16, 0.55);
+}
+
+.photo-analysis-control__heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.photo-analysis-control__heading .section-label,
+.photo-analysis-control__heading h3 {
+  margin: 0;
+}
+
+.photo-analysis-control__heading h3 {
+  margin-top: 0.1rem;
+  font-size: 0.95rem;
+}
+
+.photo-analysis-control__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid rgba(85, 228, 243, 0.35);
+  border-radius: 0.7rem;
+  color: var(--cyan);
+  background: rgba(85, 228, 243, 0.08);
+}
+
+.photo-analysis-control > p,
+.photo-analysis-control > small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.52;
+}
+
+.photo-analysis-control > small {
+  color: var(--dim);
+  font-size: 0.64rem;
+}
+
+.displacement-index {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(255, 196, 92, 0.3);
+  border-radius: 0.9rem;
+  background: linear-gradient(145deg, rgba(255, 196, 92, 0.1), rgba(167, 139, 250, 0.045));
+}
+
+.displacement-index > div:first-child {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.displacement-index > div:first-child > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+
+.displacement-index strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.18rem;
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.displacement-index strong small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.displacement-index__scale {
+  height: 0.42rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(147, 185, 211, 0.12);
+}
+
+.displacement-index__scale span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--amber));
+  transition: width 260ms ease;
+}
+
+.displacement-index p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.66rem;
+  line-height: 1.48;
+}
+
+.photo-warp-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1.05rem;
+  border-color: rgba(167, 139, 250, 0.26);
+  background:
+    radial-gradient(circle at 82% 8%, rgba(167, 139, 250, 0.09), transparent 34%),
+    var(--surface);
+}
+
+.photo-warp-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.photo-warp-panel__head h2,
+.photo-warp-panel__head .section-label {
+  margin-bottom: 0.2rem;
+}
+
+.photo-warp-panel__head > div > p:last-child {
+  max-width: 58rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.photo-warp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.photo-warp-toolbar .segmented-control {
+  width: min(100%, 25rem);
+}
+
+.photo-warp-stage {
+  position: relative;
+  display: grid;
+  min-height: 28rem;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at center, rgba(78, 216, 236, 0.06), transparent 46%),
+    #030910;
+}
+
+#photo-warp-canvas {
+  display: block;
+  width: 100%;
+  max-height: 75dvh;
+  object-fit: contain;
+}
+
+.photo-warp-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 2rem;
+  color: var(--muted);
+  background: rgba(3, 9, 16, 0.9);
+  text-align: center;
+  pointer-events: none;
+}
+
+.photo-warp-empty[hidden] {
+  display: none;
+}
+
+.photo-warp-empty > span {
+  color: var(--violet);
+  font-family: var(--mono);
+  font-size: 1.6rem;
+}
+
+.photo-warp-empty strong {
+  color: var(--text);
+}
+
+.photo-warp-empty p {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.photo-warp-readout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgba(3, 9, 16, 0.46);
+}
+
+.photo-warp-readout > p {
+  max-width: 66rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.photo-warp-readout dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5.2rem, auto));
+  margin: 0;
+}
+
+.photo-warp-readout dl > div {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0 0.8rem;
+  border-left: 1px solid var(--line);
+}
+
+.photo-warp-readout dt {
+  color: var(--dim);
+  font-size: 0.62rem;
+  font-weight: 740;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.photo-warp-readout dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 52rem) {
+  .photo-warp-toolbar,
+  .photo-warp-panel__head,
+  .photo-warp-readout {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .photo-warp-toolbar {
+    display: grid;
+  }
+
+  .photo-warp-toolbar .segmented-control {
+    width: 100%;
+  }
+
+  .photo-warp-stage {
+    min-height: 20rem;
+  }
+
+  .photo-warp-readout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .photo-warp-readout dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 30rem) {
+  .photo-analysis-control__heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .photo-analysis-control__heading .state-label {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .photo-warp-panel {
+    padding: 0.8rem;
+  }
+
+  .photo-warp-stage {
+    min-height: 16rem;
+  }
+
+  .photo-warp-readout dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .photo-warp-readout dl > div {
+    grid-template-columns: 1fr auto;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    padding: 0.55rem 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .displacement-index__scale span {
+    transition: none;
+  }
+}
+
 /* Interaction and interpretation refinements */
 
 .photo-stage.has-image,

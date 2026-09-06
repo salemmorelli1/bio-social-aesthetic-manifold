@@ -9,10 +9,14 @@ generates no recommended coordinate modifications. Reference A, Reference B,
 and the pooled reference are simulated probability models used to demonstrate
 the mechanics of shape-space statistics.
 
-The website also contains a local image-confirmation view. That view is
-architecturally separate from this mathematical pipeline: image pixels and
-image metadata are not passed to Python, used to obtain landmarks, or joined
-to any statistical result.
+The website also contains a local image-confirmation view. Nothing is detected
+until the user explicitly selects the photo-analysis route. At that point, a
+pinned MediaPipe Face Landmarker runs on the image in browser memory and a
+fixed correspondence adapter samples 68 points from its dense mesh. Python
+receives only those coordinate values; it never receives image pixels. The
+returned residual field may then drive a browser-canvas texture warp. No
+blendshape, identity, demographic, health, emotion, psychological,
+sociological, or appearance inference is requested or reported.
 
 A page-controlled, 27-page APA-style explanation of the implementation and a
 worked synthetic example is available in the
@@ -339,9 +343,56 @@ The optional violet warp uses the same residual field to draw the displaced
 configuration `W_j(s) = Y_j + s(M_j - Y_j)`. At `s = 1`, the warped landmarks
 coincide with the simulated reference consensus. Values greater than one
 extrapolate in the same direction so small proportional differences are
-visible. The warp and its mesh exist only on the shape-space canvas. They do
-not modify an image, change coordinates sent to the engine, or change any
-reported metric.
+visible. The display scale does not change coordinates sent to the engine or
+change any reported metric.
+
+### 9.2 Photo-coordinate restoration and piecewise-affine texture warp
+
+For photo landmarks in pixel coordinates, let \(c(X)\) be their centroid size
+before preshape normalization and let \(r_j^{(X)}\) be the residual rotated back
+to input orientation. The requested destination vertex is
+
+\[
+x'_j=x_j+s\,c(X)r_j^{(X)},
+\]
+
+where \(s\in\{1,3,6\}\) is a visualization factor. Multiplication by
+\(c(X)\) restores the unit-preshape residual to the input pixel scale.
+
+The renderer adds eight zero-displacement anchors around the detected face,
+forms a Delaunay triangulation on the source vertices, and computes one affine
+map per triangle. If triangle \(t\) has source vertices \(P_t\) and destination
+vertices \(Q_t\), the local map \(A_t\) satisfies
+
+\[
+\begin{bmatrix}q_x & q_y\end{bmatrix}
+=
+\begin{bmatrix}p_x & p_y & 1\end{bmatrix}A_t
+\]
+
+at its three vertices. The output canvas clips to each destination triangle and
+draws the corresponding source texture through \(A_t\). Individual vertex
+shifts are capped at 16% of the detected face-box diagonal, and a multiplicative
+line search reduces the requested displacement until every nondegenerate
+triangle retains orientation and an acceptable area ratio. These are rendering
+safeguards, not statistical estimators.
+
+### 9.3 Geometric Displacement Index
+
+The interface reports a bounded display index
+
+\[
+\operatorname{GDI}
+=10\min\left(1,\frac{d_P}{\sqrt 2}\right).
+\]
+
+For optimally aligned unit preshapes, \(d_P=0\) means geometric coincidence and
+\(\sqrt2\) is the maximum chord separation under the proper-rotation
+convention used here. GDI therefore maps these algebraic endpoints to 0 and 10.
+It is monotone in partial Procrustes distance, has no empirical calibration,
+and must not be read as an attractiveness, quality, psychological,
+sociological, health, or identity score. The study-context sliders do not enter
+this formula.
 
 ## 10. Gradient identity and why optimization is omitted
 
@@ -466,10 +517,11 @@ Three built-in inputs make the pipeline inspectable without personal data:
 - **Blend** starts from `preshape(0.55 A + 0.45 B)`, then receives a new
   deterministic structured perturbation (seed 90031).
 
-Thus, Blend combines corresponding synthetic landmark coordinates. It never
-combines, transforms, or analyzes uploaded photographs. The selected simulated
-reference is a separate choice: Reference A and Reference B each contain 160
-configurations, while Pooled A + B contains 320.
+Thus, Blend combines corresponding synthetic landmark coordinates; it never
+combines uploaded photographs. The optional photo route is a separate input
+mode. The selected simulated reference is also a separate choice: Reference A
+and Reference B each contain 160 configurations, while Pooled A + B contains
+320.
 
 To analyze context scientifically, a future study would need a defined target
 population, measurement protocol, sampling frame, repeated-rater structure,
@@ -488,7 +540,10 @@ The engine applies the following safeguards:
 - covariance is symmetrized, shrunk, and ridge-regularized;
 - Cholesky solution replaces explicit inversion;
 - JSON serialization rejects NaN and infinity;
-- deterministic seeds make every simulated reference reproducible.
+- deterministic seeds make every simulated reference reproducible;
+- the dense-to-68 mapping is fixed and contains 68 unique indices;
+- photo shifts are capped and triangle orientation is protected by line search;
+- image pixels remain outside the Python payload and JSON export.
 
 ## 16. Invariance and limitations
 
@@ -497,10 +552,12 @@ global translation, uniform scale, and proper planar rotation of the input.
 They are not invariant to landmark relabeling, missing landmarks, reflection,
 nonuniform image distortion, perspective, expression, or measurement error.
 
-The demonstration assumes exact one-to-one landmark correspondence. It does not
-perform image landmark detection. Applying these methods to empirical data
+The demonstration assumes exact one-to-one landmark correspondence. Its
+MediaPipe-to-68 adapter is an engineering approximation and not native Dlib
+output. It does not quantify landmark uncertainty, correct out-of-plane pose,
+or validate texture-warp fidelity. Applying these methods to empirical data
 requires documented landmark acquisition, reliability assessment, handling of
-missingness, and ethical review appropriate to the study.
+missingness, external validation, and ethical review appropriate to the study.
 
 The complete annotated bibliography and implementation map appear in the
 [repository README](../README.md).

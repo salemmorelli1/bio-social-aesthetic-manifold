@@ -10,12 +10,12 @@
     <meta name="apple-mobile-web-app-title" content="Shape Lab">
     <meta
       name="description"
-      content="An interactive, local-first laboratory for image preview and synthetic geometric morphometrics using GPA, tangent-space PCA, and regularized Mahalanobis distance."
+      content="A local-first geometric morphometrics laboratory with an opt-in photo texture warp, GPA, tangent-space PCA, and regularized Mahalanobis distance."
     >
     <meta name="theme-color" content="#050a12">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     >
     <title>Shape Manifold Laboratory</title>
     <link rel="stylesheet" href="./assets/css/main.css">
@@ -51,8 +51,8 @@
     <div class="scope-strip" role="note">
       <span class="scope-strip__mark" aria-hidden="true">i</span>
       <p>
-        <strong>Synthetic demonstration.</strong> Images are displayed locally and are never analyzed.
-        Shape statistics use simulated or de-identified coordinate data only.
+        <strong>Local geometric demonstration.</strong> A photo is processed only after you choose
+        “Detect landmarks &amp; render warp”; pixels stay in this browser and no appearance rating is produced.
       </p>
     </div>
 
@@ -115,12 +115,13 @@
             <h1>Inspect the source <em>image clearly.</em></h1>
             <p>
               Add a JPG, PNG, or WebP image to preview it at full resolution.
-              Zoom, rotate, pan, replace, or remove it without sending the file anywhere.
+              Zoom, rotate, pan, replace, or remove it without sending the file anywhere. If you
+              choose local analysis in the Shape Laboratory, a one-face landmark mesh can drive a geometric warp.
             </p>
           </div>
           <div class="privacy-badge">
             <span aria-hidden="true">◎</span>
-            <div><strong>Preview only</strong><small>No detection or scoring</small></div>
+            <div><strong>Local processing</strong><small>No upload or appearance score</small></div>
           </div>
         </div>
 
@@ -184,7 +185,7 @@
               <span><small>File</small><strong id="photo-name">—</strong></span>
               <span><small>Dimensions</small><strong id="photo-dimensions">—</strong></span>
               <span><small>Size</small><strong id="photo-size">—</strong></span>
-              <span><small>Processing</small><strong id="photo-processing">Local preview</strong></span>
+              <span><small>Processing</small><strong id="photo-processing">Local preview only</strong></span>
             </div>
           </section>
 
@@ -199,11 +200,11 @@
                 </li>
                 <li>
                   <span>2</span>
-                  <div><strong>Prepare coordinates separately</strong><p>Use an approved research workflow to create 68 ordered landmarks.</p></div>
+                  <div><strong>Choose the analysis route</strong><p>Load de-identified coordinates, or explicitly detect one face locally.</p></div>
                 </li>
                 <li>
                   <span>3</span>
-                  <div><strong>Open the shape lab</strong><p>Analyze synthetic or de-identified coordinates descriptively.</p></div>
+                  <div><strong>Open the shape lab</strong><p>Compare geometry and optionally render the detected photo warp.</p></div>
                 </li>
               </ol>
               <button id="open-lab" class="button button--secondary button--full" type="button">
@@ -215,10 +216,10 @@
               <div class="boundary-card__icon" aria-hidden="true">◇</div>
               <div>
                 <p class="section-label">Analysis boundary</p>
-                <h2 id="boundary-title">The photo stays separate.</h2>
+                <h2 id="boundary-title">Processing stays local and explicit.</h2>
                 <p>
-                  This viewer does not detect a face, extract landmarks, infer identity or demographics,
-                  evaluate appearance, or connect the image to statistical results.
+                  The viewer itself does not analyze pixels. The lab runs landmark detection only after
+                  your button press and never infers identity, demographics, health, emotion, or attractiveness.
                 </p>
               </div>
             </section>
@@ -236,11 +237,11 @@
       >
         <div class="page-intro page-intro--compact">
           <div>
-            <p class="eyebrow">Synthetic geometric morphometrics</p>
+            <p class="eyebrow">Local geometric morphometrics</p>
             <h1>Explore shape space, <em>not appearance.</em></h1>
             <p>
-              Select a simulated sample or load a de-identified 68×2 coordinate matrix.
-              Every result is a descriptive comparison with simulated data.
+              Select a simulated sample, load a de-identified 68×2 matrix, or explicitly extract
+              68 landmarks from the uploaded photo. Every result compares geometry with simulated data.
             </p>
           </div>
           <div class="lab-readiness"><small>Analysis configuration</small><strong id="configuration-state">Waiting</strong></div>
@@ -252,6 +253,27 @@
               <div><p class="section-label">Configuration</p><h2 id="controls-title">Research input</h2></div>
               <span class="step-count">1 / 3</span>
             </div>
+
+            <section class="photo-analysis-control" aria-labelledby="photo-analysis-title">
+              <div class="photo-analysis-control__heading">
+                <span class="photo-analysis-control__icon" aria-hidden="true">◫</span>
+                <div>
+                  <p class="section-label">Optional local photo route</p>
+                  <h3 id="photo-analysis-title">Use the uploaded photo</h3>
+                </div>
+                <span id="photo-analysis-status" class="state-label">No photo</span>
+              </div>
+              <p>
+                Detect one face locally, sample a 68-point correspondence, run the same descriptive
+                shape calculation, and render a texture warp. Pixels are not uploaded.
+              </p>
+              <button id="analyze-photo-button" class="button button--secondary button--full" type="button" disabled>
+                Detect landmarks &amp; render warp <span aria-hidden="true">→</span>
+              </button>
+              <small>Downloads a pinned MediaPipe model on first use. No blendshapes or personal attributes are requested.</small>
+            </section>
+
+            <div class="divider"><span>or use research inputs</span></div>
 
             <div class="control-group">
               <span class="control-label">Built-in simulated sample</span>
@@ -280,7 +302,7 @@
               </div>
             </details>
 
-            <div class="divider"><span>or use coordinates</span></div>
+            <div class="divider"><span>or load coordinates</span></div>
 
             <div class="control-group">
               <label id="upload-label" class="control-label" for="landmark-file">De-identified landmark matrix</label>
@@ -393,7 +415,7 @@
               </label>
               <details class="method-note">
                 <summary>Reading the plot</summary>
-                <p>The violet surface deforms the input landmarks along amplified residual vectors so proportional differences are easier to see. The image preview is never warped, and arrows remain mathematical residuals—not recommendations.</p>
+                <p>The violet surface deforms landmarks along amplified residual vectors. When a photo is the active input, the Photo warp card below applies those same vectors to image texture. Both are geometric illustrations—not recommendations.</p>
               </details>
             </div>
           </section>
@@ -402,6 +424,14 @@
             <div class="surface-head">
               <div><p class="section-label">Output</p><h2 id="results-title">Descriptive metrics</h2></div>
               <span id="analysis-state" class="state-label">Not run</span>
+            </div>
+            <div class="displacement-index" aria-describedby="displacement-index-note">
+              <div>
+                <span>Geometric displacement index</span>
+                <strong><output id="metric-displacement-index">—</output><small>/10</small></strong>
+              </div>
+              <div class="displacement-index__scale" aria-hidden="true"><span id="displacement-index-fill"></span></div>
+              <p id="displacement-index-note">0 means no aligned displacement; 10 is the algebraic maximum on this normalization. Higher is not better or worse.</p>
             </div>
             <div class="headline-metric">
               <span>Regularized Mahalanobis</span>
@@ -434,9 +464,47 @@
               </dl>
             </details>
             <button id="export-button" class="button button--secondary button--full" type="button" disabled>Export analysis JSON</button>
-            <p class="results-footnote">Distances are descriptive magnitudes—not percentiles, probabilities, classifications, or values.</p>
+            <p class="results-footnote">The 0–10 index and all distances are descriptive magnitudes—not appearance scores, percentiles, probabilities, classifications, or values. Context sliders do not alter them.</p>
           </aside>
         </div>
+
+        <section id="photo-warp-panel" class="surface photo-warp-panel" aria-labelledby="photo-warp-title">
+          <div class="photo-warp-panel__head">
+            <div>
+              <p class="section-label">Local image deformation</p>
+              <h2 id="photo-warp-title">Photo warp</h2>
+              <p>Piecewise-affine texture rendering from the detected 68-point mesh to the selected simulated consensus.</p>
+            </div>
+            <span id="photo-warp-state" class="state-label">Waiting for photo</span>
+          </div>
+          <div class="photo-warp-toolbar">
+            <div class="segmented-control" role="group" aria-label="Photo warp view">
+              <button type="button" class="segment" data-photo-warp-mode="original">Original</button>
+              <button type="button" class="segment is-active" data-photo-warp-mode="split">Split</button>
+              <button type="button" class="segment" data-photo-warp-mode="warped">Warped</button>
+            </div>
+            <label class="warp-toggle" for="show-photo-mesh">
+              <input id="show-photo-mesh" type="checkbox">
+              <span>Show triangulation mesh</span>
+            </label>
+          </div>
+          <div class="photo-warp-stage">
+            <canvas id="photo-warp-canvas" width="1200" height="900" aria-label="Original and locally warped photo comparison"></canvas>
+            <div id="photo-warp-empty" class="photo-warp-empty">
+              <span aria-hidden="true">68 × 2</span>
+              <strong>Upload a photo, then choose local analysis</strong>
+              <p>The original and descriptive warp will appear here without uploading image pixels.</p>
+            </div>
+          </div>
+          <div class="photo-warp-readout" aria-live="polite">
+            <p id="photo-warp-caption">No photo-derived geometry is active. Synthetic samples and coordinate files remain available above.</p>
+            <dl>
+              <div><dt>Render</dt><dd id="photo-warp-render-scale">—</dd></div>
+              <div><dt>Triangles</dt><dd id="photo-warp-triangles">—</dd></div>
+              <div><dt>RMS shift</dt><dd id="photo-warp-rms">—</dd></div>
+            </dl>
+          </div>
+        </section>
       </section>
 
       <section
@@ -463,7 +531,7 @@
         </div>
 
         <section class="pipeline" aria-label="Morphometric pipeline">
-          <article><span>01</span><strong>Validate</strong><p>Require 68 ordered finite coordinate pairs.</p></article>
+          <article><span>01</span><strong>Acquire</strong><p>Use a simulated matrix, a coordinate file, or explicit local face landmarks.</p></article>
           <article><span>02</span><strong>Normalize</strong><p>Remove translation and centroid size.</p></article>
           <article><span>03</span><strong>Align</strong><p>Estimate proper rotations by iterative SVD GPA.</p></article>
           <article><span>04</span><strong>Project</strong><p>Map the configuration to a 132-dimensional tangent basis.</p></article>
@@ -495,6 +563,18 @@
             <div class="equation" aria-label="Residual warp equation">W<sub>j</sub>(s) = Y<sub>j</sub> + s(M<sub>j</sub> − Y<sub>j</sub>)</div>
             <p>The scale s changes only the canvas rendering. At s = 1 the warped points meet the simulated consensus; larger values exaggerate the same descriptive direction.</p>
           </section>
+          <section class="surface equation-card">
+            <p class="section-label">Bounded 0–10 magnitude</p>
+            <h2>Geometric displacement index</h2>
+            <div class="equation" aria-label="Geometric displacement index equation">GDI = 10 min(1, d<sub>P</sub>/√2)</div>
+            <p>This monotone rescaling of partial Procrustes distance has fixed mathematical anchors: 0 is coincidence after alignment and 10 is the maximum unit-preshape chord separation under proper rotation. It is not an attractiveness or quality score.</p>
+          </section>
+          <section class="surface equation-card">
+            <p class="section-label">Piecewise-affine image rendering</p>
+            <h2>Triangulated photo warp</h2>
+            <div class="equation" aria-label="Piecewise affine photo warp equation">x′<sub>j</sub> = x<sub>j</sub> + s c r<sub>j</sub></div>
+            <p>Delaunay triangles map source pixels to residual-displaced vertices. A shift cap and triangle-orientation line search reduce fold-overs; zero-displacement boundary anchors blend the transformed region into the original image.</p>
+          </section>
           <section class="surface conclusion-card" aria-labelledby="analysis-conclusion-title">
             <div class="conclusion-card__heading">
               <div>
@@ -504,7 +584,7 @@
               <span id="conclusion-source" class="state-label">Preparing</span>
             </div>
             <p id="analysis-conclusion">The current synthetic configuration will be summarized after the local calculation finishes.</p>
-            <p class="conclusion-boundary">This conclusion concerns coordinate geometry only. No uploaded photograph is analyzed or blended.</p>
+            <p class="conclusion-boundary">This conclusion concerns coordinate geometry only. A photo can supply local landmarks and texture for visualization, but no personal, psychological, sociological, or appearance inference is made.</p>
           </section>
           <section class="surface blend-card">
             <p class="section-label">Synthetic blend definition</p>
@@ -546,6 +626,7 @@
                 <li>132 tangent coordinates and PCA summaries</li>
                 <li>Procrustes and regularized Mahalanobis distances</li>
                 <li>Descriptive residual shape vectors</li>
+                <li>Opt-in, browser-local landmark and texture-warp rendering</li>
               </ul>
             </div>
             <div>
@@ -555,7 +636,7 @@
                 <li>Attractiveness, health, identity, or demographic category</li>
                 <li>Population percentiles or clinical interpretations</li>
                 <li>Prescriptive coordinate changes or appearance advice</li>
-                <li>Any statistic from an uploaded photo</li>
+                <li>Psychological, sociological, attractiveness, or quality ratings</li>
               </ul>
             </div>
           </section>
@@ -603,16 +684,17 @@
       <div class="scope-card">
         <button id="close-scope" class="modal-close" type="button" aria-label="Close research scope">×</button>
         <p class="section-label">Research boundary</p>
-        <h2 id="scope-title">Descriptive and synthetic by design</h2>
+        <h2 id="scope-title">Descriptive and local by design</h2>
         <p>
-          The image viewer is a local confirmation surface only. The mathematical laboratory accepts
-          synthetic or de-identified coordinate matrices and compares them with explicitly simulated references.
+          The viewer is local. If you explicitly choose photo analysis, a pinned face-landmark model
+          processes one image in browser memory and supplies coordinates to the same simulated-reference pipeline.
         </p>
         <dl>
           <div><dt>Image transfer</dt><dd>None</dd></div>
-          <div><dt>Photo analysis</dt><dd>None</dd></div>
+          <div><dt>Photo processing</dt><dd>Opt-in, in browser</dd></div>
           <div><dt>Reference data</dt><dd>Simulated</dd></div>
-          <div><dt>Output type</dt><dd>Descriptive geometry</dd></div>
+          <div><dt>Output type</dt><dd>Descriptive geometry and warp</dd></div>
+          <div><dt>Personal inference</dt><dd>None</dd></div>
         </dl>
         <button id="acknowledge-scope" class="button button--primary button--full" type="button">Understood</button>
       </div>

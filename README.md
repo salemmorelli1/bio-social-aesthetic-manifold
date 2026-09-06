@@ -18,15 +18,17 @@ population model.
   simulations.
 - The application does not estimate male, female, sex, gender, ancestry,
   identity, health, attractiveness, or any other personal category.
-- It does not rank configurations, produce percentiles, prescribe coordinate
-  changes, or optimize an observed configuration toward a reference.
+- It does not rank configurations, produce population percentiles, prescribe
+  coordinate changes, or optimize an observed configuration toward a reference.
 - Residual arrows are descriptive differences between aligned configurations.
 - Study-context sliders are exportable annotations and have no effect on any
   statistic.
-- JPG, PNG, and WebP images can be displayed in a local preview workspace, but
-  they are not analyzed, transmitted, stored, or connected to statistical
-  output. Shape analysis operates only on built-in synthetic samples or
-  de-identified 68×2 coordinate files.
+- JPG, PNG, and WebP images can be displayed in a local preview workspace. An
+  explicit button can run one-face landmark detection and a texture warp in
+  browser memory. Pixels are not transmitted or stored by the application.
+- The displayed 0–10 Geometric Displacement Index is only a bounded rescaling
+  of partial Procrustes distance. It is not an attractiveness, quality,
+  psychology, sociology, health, or identity score.
 
 The word *aesthetic* remains in the repository name as project provenance; no
 aesthetic response is operationalized by the software.
@@ -44,6 +46,8 @@ aesthetic response is operationalized by the software.
   keyboard-navigable views.
 - Provides three deterministic synthetic configurations for immediate use.
 - Accepts JSON, CSV, and plain-text landmark configurations.
+- Optionally detects one dense face mesh locally with a pinned MediaPipe Face
+  Landmarker and samples it into the fixed 68-point correspondence.
 - Enforces the conventional 68-point index topology.
 - Fits a true multi-configuration GPA reference consensus.
 - Removes translation, uniform scale, and proper planar rotation.
@@ -55,6 +59,10 @@ aesthetic response is operationalized by the software.
 - Computes partial/full Procrustes and regularized Mahalanobis distances.
 - Draws input, consensus, descriptive residual vectors, and an optional
   proportional warp mesh on an HTML canvas.
+- Applies those residuals to photo texture with a bounded, piecewise-affine
+  Delaunay-triangle warp, shown as Original, Split, or Warped.
+- Displays a neutral 0–10 Geometric Displacement Index with fixed mathematical
+  endpoints and an explicit non-normative interpretation.
 - Explains Sample A, Sample B, Blend, every displayed metric, and the current
   run in plain language within the interface.
 - Exports the analysis and study-context metadata as JSON.
@@ -67,7 +75,8 @@ bio-social-aesthetic-manifold/
 ├── .github/workflows/deploy.yml   # GitHub Pages deployment
 ├── assets/
 │   ├── css/main.css               # Responsive scientific interface
-│   └── js/app.js                  # Pyodide bridge and canvas renderer
+│   ├── js/app.js                  # Pyodide bridge and interface controller
+│   └── js/photo-warp.mjs          # Local landmark adapter and texture warp
 ├── core/analytics.py              # NumPy/SciPy statistical engine
 ├── docs/bio_social_aesthetic_manifold_apa_report.pdf # 27-page report
 ├── docs/mathematical_theory.md    # Detailed mathematical specification
@@ -105,29 +114,38 @@ Reference A, Reference B, or the pooled 320-configuration reference.
 flowchart TB
     A["Local browser session"] --> B["Image input"]
     A --> C["Synthetic or coordinate input"]
-    B --> D["Preview controls only"]
-    C --> E["JavaScript validation"]
+    B --> D["Preview or explicit local landmarks"]
+    C --> E["68-point validation"]
+    D --> E
     E --> F["Pyodide statistical engine"]
-    F --> G["Shape plot and JSON results"]
+    F --> G["Metrics, shape plot, and optional photo warp"]
 ```
 
 1. `index.html` loads the three-view interface, the pinned Pyodide
    distribution, and the JavaScript bridge.
 2. A selected image receives a temporary browser object URL and is shown in an
-   isolated preview. It never enters Python or the analytics payload.
-3. `assets/js/app.js` loads NumPy and SciPy, fetches `core/analytics.py`, and
+   isolated preview. No detection occurs until the user presses **Detect
+   landmarks & render warp**.
+3. On that explicit action, `assets/js/photo-warp.mjs` loads MediaPipe Face
+   Landmarker 1.0.1, detects one dense mesh locally, and samples 68 points in
+   the project's Dlib-style ordering. Blendshape and personal-attribute outputs
+   are disabled.
+4. `assets/js/app.js` loads NumPy and SciPy, fetches `core/analytics.py`, and
    executes it within Pyodide.
-4. A JavaScript `Float64Array` containing 136 coordinate values is placed in
+5. A JavaScript `Float64Array` containing 136 coordinate values is placed in
    the Pyodide global namespace with `pyodide.globals.set()`.
-5. JavaScript calls `run_pipeline_from_js()` and parses its JSON result.
-6. The browser renders aligned configurations, residual vectors, distance
-   statistics, PCA scores, and GPA diagnostics.
-7. Neither images nor coordinate data are transmitted to an application
+6. JavaScript calls `run_pipeline_from_js()` and parses its JSON result.
+7. For a photo-derived configuration, unit-shape residuals are restored to
+   pixels with the input centroid size and applied by a piecewise-affine mesh.
+8. The browser renders aligned configurations, residual vectors, the neutral
+   displacement index, distance statistics, PCA scores, and GPA diagnostics.
+9. Neither images nor coordinate data are transmitted to an application
    server.
 
-The browser still requests Pyodide, NumPy, and SciPy assets from the pinned CDN
-when the runtime initializes. That resource request is distinct from analysis
-data: landmark coordinates remain in browser memory.
+The browser requests Pyodide, NumPy, and SciPy assets from the pinned CDN when
+the runtime initializes. The Face Landmarker code and model are requested only
+on first photo-analysis use. Those resource requests are distinct from analysis
+data: the application does not attach the photo or coordinates to them.
 
 ## Local setup
 
@@ -176,8 +194,8 @@ fallback.
 
 ## Input formats
 
-Each input must contain exactly 68 ordered two-dimensional landmarks, or 136
-finite numbers in total.
+Each coordinate-file input must contain exactly 68 ordered two-dimensional
+landmarks, or 136 finite numbers in total.
 
 ### JSON matrix
 
@@ -229,6 +247,12 @@ are accepted. A single header row is allowed. Input files are limited to 1 MB.
 The names identify point ordering. The synthetic templates are analytic
 configurations created inside `analytics.py`; they are not coordinates copied
 from Dlib, a published sample, or a biometric population.
+
+For the optional photo route, `MEDIAPIPE_TO_DLIB_68` in
+`assets/js/photo-warp.mjs` is a fixed topology adapter from selected dense-mesh
+vertices to this order. It is an engineering correspondence, not native Dlib
+detector output and not a claim that two landmark definitions are anatomically
+identical.
 
 ## Statistical pipeline
 
@@ -333,7 +357,21 @@ D_M=\sqrt{(z-\bar z)^\mathsf T
 The engine solves the quadratic form with a Cholesky factor rather than
 forming \(\widehat\Sigma^{-1}\) explicitly.
 
-### 7. Residuals and gradients
+### 7. Geometric Displacement Index
+
+The interface places partial Procrustes distance on a fixed display interval:
+
+\[
+\operatorname{GDI}=10\min\left(1,\frac{d_P}{\sqrt 2}\right).
+\]
+
+For optimally aligned unit preshapes, 0 indicates coincidence and \(\sqrt2\)
+is the maximum chord separation under this proper-rotation convention. Thus,
+GDI 0 means no aligned displacement and GDI 10 means the algebraic maximum on
+this normalization. It is a magnitude index only: higher never means better or
+worse, and no psychology or sociology slider enters the formula.
+
+### 8. Residuals, gradients, and photo rendering
 
 The residual at landmark \(j\) is
 
@@ -341,8 +379,21 @@ The residual at landmark \(j\) is
 r_j=M_j-Y_j.
 \]
 
-The canvas can display \(r_j\) literally or magnify it for visibility. It does
-not update the observed coordinates.
+The shape canvas can display \(r_j\) literally or magnify it for visibility.
+For a photo-derived configuration, the residual is returned to input
+orientation and pixels:
+
+\[
+\Delta x_j=s\,c(X)\,r_j,
+\qquad x'_j=x_j+\Delta x_j,
+\]
+
+where \(s\) is the selected visualization scale and \(c(X)\) is centroid size.
+Delaunay triangles define local affine maps from \(x_j\) to \(x'_j\). Eight
+zero-displacement anchors surround the detected face region, individual shifts
+are capped relative to face size, and a line search reduces \(s\) if any
+triangle would reverse orientation. These safeguards affect rendering only;
+the reported statistics never change.
 
 For reference, the derivative of squared Mahalanobis distance is
 
@@ -417,14 +468,17 @@ The Python bridge returns these principal blocks:
 - `input_geometry`: raw centroid and centroid size;
 - `gpa`: convergence and ensemble-alignment diagnostics;
 - `distances`: partial/full Procrustes and regularized Mahalanobis distances;
+- `geometric_displacement_index`: bounded value, formula, range, and explicit
+  non-normative metadata;
 - `tangent_space`: all 132 coordinates and the first ten PCA summaries;
 - `residual_shape_difference`: aligned and input-orientation vectors;
 - `covariance_diagnostics`: shrinkage, ridge, condition number, and retained
   off-diagonal structure;
 - `interpretation`: explicit non-normative and non-prescriptive metadata.
 
-Exported browser files additionally include the three study-context annotations
-and an ISO 8601 UTC timestamp.
+Exported browser files additionally include the three study-context annotations,
+source type, optional photo-render diagnostics, and an ISO 8601 UTC timestamp.
+No image pixels are included.
 
 ## Validation
 
@@ -438,20 +492,26 @@ Run JavaScript syntax validation:
 
 ```bash
 node --check assets/js/app.js
+node --check assets/js/photo-warp.mjs
 ```
 
 Serve the site and confirm that:
 
 1. JPG, PNG, and WebP files appear immediately in Photo Preview;
-2. zoom, pan, rotate, fit, replace, and remove affect only the local preview;
+2. zoom, pan, rotate, fit, replace, and remove work in the local preview;
 3. the runtime completes all three initialization stages;
 4. each built-in sample produces 132 tangent coordinates and 68 residuals;
 5. changing Reference A/B/Pooled recomputes the metrics;
 6. changing the warp/residual display scale changes only the drawing;
-7. dragging from either the image pixels or the surrounding stage pans the
+7. the Geometric Displacement Index equals
+   \(10\min(1,d_P/\sqrt2)\) and is unchanged by context sliders;
+8. after explicit local photo analysis, Original/Split/Warped modes display a
+   texture render and changing the visualization scale redraws it without
+   changing any metric;
+9. dragging from either the image pixels or the surrounding stage pans the
    preview and does not trigger native browser image dragging;
-8. malformed image or coordinate files produce a readable error;
-9. exported JSON marks the reference as simulated and context as
+10. malformed image or coordinate files produce a readable error;
+11. exported JSON marks the reference as simulated and context as
    `annotation_only`.
 
 The engine has also been checked for translation, uniform-scale, and
@@ -476,14 +536,18 @@ when a newer commit arrives.
   required.
 - Pyodide is pinned to version 314.0.6 using the complete official jsDelivr
   path documented by the [Pyodide project](https://pyodide.org/en/stable/usage/quickstart.html).
+- MediaPipe Tasks Vision is pinned to 1.0.1 and follows the official
+  [Face Landmarker web guide](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/web_js).
 - The Content Security Policy limits executable resources to the repository and
-  the pinned jsDelivr host.
+  the pinned jsDelivr host; model fetches are limited to Google's model host.
 - Image files are decoded through a temporary `blob:` URL, remain in browser
   memory, and are released when replaced, removed, or when the page closes.
 - The preview accepts JPG, PNG, and WebP images up to 20 MB. SVG is excluded
   from the accepted image types.
-- Image pixels, filenames, dimensions, and transformations are never supplied
-  to the Pyodide engine or included in exported analysis JSON.
+- Photo pixels are decoded and, after explicit action, passed only to the local
+  MediaPipe task and canvas renderer. The Python engine receives 136 numbers,
+  not image pixels. The export includes a source label and render diagnostics,
+  but never pixel data.
 - Coordinate inputs are read through the browser File API and are not uploaded
   by application code.
 - Nothing is stored in cookies, local storage, a database, or an analytics
@@ -501,9 +565,11 @@ when a newer commit arrives.
 - The method assumes complete homologous correspondence and no missing points.
 - Tangent projection is local; very distant configurations may require another
   chart or an intrinsic method.
-- The photo workspace is only a viewer. The application has no image detector,
-  landmark extractor, reliability study, repeated-measures model, causal
-  model, outcome model, or external validation sample.
+- The photo landmark adapter is a convenience visualization without a
+  reliability study, uncertainty estimate, pose correction, repeated-measures
+  model, causal model, outcome model, or external validation sample.
+- Piecewise-affine warping can show seams or artifacts and is not a prediction,
+  recommendation, treatment simulation, or depiction of an attainable result.
 
 ## Path from demonstration to empirical research
 

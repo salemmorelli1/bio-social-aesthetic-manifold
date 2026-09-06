@@ -8,6 +8,7 @@ const MAX_INPUT_FILE_BYTES = 1024 * 1024;
 const MAX_PHOTO_FILE_BYTES = 20 * 1024 * 1024;
 const ACCEPTED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ACCEPTED_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const PHOTO_WARP_MODULE_URL = new URL("./assets/js/photo-warp.mjs", document.baseURI).href;
 
 const LANDMARK_PATHS = [
   { start: 0, end: 16, closed: false },
@@ -43,11 +44,13 @@ const state = {
   currentLandmarks: null,
   currentSource: "Synthetic Sample A",
   currentDemo: "a",
+  inputKind: "synthetic",
   result: null,
   analysisToken: 0,
   analysisRunning: false,
   activeView: "photo",
   photoObjectUrl: null,
+  photoFileName: null,
   photoZoom: 1,
   photoRotation: 0,
   photoPanX: 0,
@@ -57,6 +60,13 @@ const state = {
   photoPointerStartY: 0,
   photoPanStartX: 0,
   photoPanStartY: 0,
+  photoWarpModule: null,
+  photoAnalysisSource: null,
+  photoLandmarks: null,
+  photoDenseLandmarkCount: 0,
+  photoWarpMode: "split",
+  photoWarpDiagnostics: null,
+  photoWarpBusy: false,
   scopeReturnFocus: null,
 };
 
@@ -110,6 +120,8 @@ function cacheInterface() {
   ui.metricMahalanobis = getElement("metric-mahalanobis");
   ui.metricCentroid = getElement("metric-centroid");
   ui.metricRms = getElement("metric-rms");
+  ui.metricDisplacementIndex = getElement("metric-displacement-index");
+  ui.displacementIndexFill = getElement("displacement-index-fill");
   ui.metricInterpretation = getElement("metric-interpretation");
   ui.conclusionSource = getElement("conclusion-source");
   ui.analysisConclusion = getElement("analysis-conclusion");
@@ -140,6 +152,18 @@ function cacheInterface() {
   ui.photoDimensions = getElement("photo-dimensions");
   ui.photoSize = getElement("photo-size");
   ui.photoProcessing = getElement("photo-processing");
+  ui.analyzePhotoButton = getElement("analyze-photo-button");
+  ui.photoAnalysisStatus = getElement("photo-analysis-status");
+  ui.photoWarpPanel = getElement("photo-warp-panel");
+  ui.photoWarpCanvas = getElement("photo-warp-canvas");
+  ui.photoWarpEmpty = getElement("photo-warp-empty");
+  ui.photoWarpState = getElement("photo-warp-state");
+  ui.photoWarpCaption = getElement("photo-warp-caption");
+  ui.photoWarpRenderScale = getElement("photo-warp-render-scale");
+  ui.photoWarpTriangles = getElement("photo-warp-triangles");
+  ui.photoWarpRms = getElement("photo-warp-rms");
+  ui.showPhotoMesh = getElement("show-photo-mesh");
+  ui.photoWarpModeButtons = Array.from(document.querySelectorAll("[data-photo-warp-mode]"));
   ui.demoButtons = Array.from(document.querySelectorAll("[data-demo]"));
   ui.runtimeSteps = Array.from(document.querySelectorAll("[data-runtime-step]"));
 }
@@ -276,12 +300,88 @@ function resetPhotoTransform() {
   updatePhotoTransform();
 }
 
+function fitPhotoPreview() {
+  const orientationChanged = ((state.photoRotation % 360) + 360) % 360 !== 0;
+  resetPhotoTransform();
+  if (orientationChanged) {
+    invalidatePhotoDerivedState(
+      "Photo rotation changed. Run local photo analysis again before rendering the warp."
+    );
+  }
+}
+
+function rotatePhotoPreview(deltaDegrees) {
+  state.photoRotation += deltaDegrees;
+  updatePhotoTransform();
+  invalidatePhotoDerivedState(
+    "Photo rotation changed. Run local photo analysis again before rendering the warp."
+  );
+}
+
 function setPhotoControlsEnabled(enabled) {
   ui.photoFit.disabled = !enabled;
   ui.photoRotateLeft.disabled = !enabled;
   ui.photoRotateRight.disabled = !enabled;
   ui.photoZoom.disabled = !enabled;
   ui.photoRemove.disabled = !enabled;
+  updatePhotoAnalysisAvailability();
+}
+
+function updatePhotoAnalysisAvailability() {
+  if (!ui.analyzePhotoButton) return;
+  const available = Boolean(state.photoObjectUrl && state.runtimeReady && !state.photoWarpBusy);
+  ui.analyzePhotoButton.disabled = !available;
+  if (!state.photoObjectUrl) {
+    ui.photoAnalysisStatus.textContent = "No photo";
+  } else if (state.photoWarpBusy) {
+    ui.photoAnalysisStatus.textContent = "Working";
+  } else if (!state.runtimeReady) {
+    ui.photoAnalysisStatus.textContent = "Runtime loading";
+  } else if (state.inputKind === "photo" && state.photoLandmarks) {
+    ui.photoAnalysisStatus.textContent = "Photo active";
+  } else {
+    ui.photoAnalysisStatus.textContent = "Ready";
+  }
+}
+
+function clearPhotoWarpDisplay(message = "Upload a photo, then choose local analysis.", stateLabel = "Waiting for photo") {
+  state.photoWarpDiagnostics = null;
+  const context = ui.photoWarpCanvas?.getContext("2d");
+  if (context) {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, ui.photoWarpCanvas.width, ui.photoWarpCanvas.height);
+  }
+  if (ui.photoWarpEmpty) ui.photoWarpEmpty.hidden = false;
+  if (ui.photoWarpState) ui.photoWarpState.textContent = stateLabel;
+  if (ui.photoWarpCaption) ui.photoWarpCaption.textContent = message;
+  if (ui.photoWarpRenderScale) ui.photoWarpRenderScale.textContent = "—";
+  if (ui.photoWarpTriangles) ui.photoWarpTriangles.textContent = "—";
+  if (ui.photoWarpRms) ui.photoWarpRms.textContent = "—";
+}
+
+function invalidatePhotoDerivedState(reason) {
+  const photoWasActive = state.inputKind === "photo";
+  state.photoAnalysisSource = null;
+  state.photoLandmarks = null;
+  state.photoDenseLandmarkCount = 0;
+  if (photoWasActive) {
+    state.currentLandmarks = null;
+    state.result = null;
+    state.currentDemo = null;
+    state.inputKind = null;
+    state.currentSource = "Photo analysis not run";
+    ui.sourceLabel.textContent = state.currentSource;
+    ui.fileState.textContent = reason;
+    ui.exportButton.disabled = true;
+    ui.analyzeButton.disabled = true;
+    if (state.photoObjectUrl) {
+      ui.photoProcessing.textContent = "Local · analysis required";
+    }
+    resetResultDisplay();
+    drawCurrentState();
+  }
+  clearPhotoWarpDisplay(reason, state.photoObjectUrl ? "Analysis required" : "Waiting for photo");
+  updatePhotoAnalysisAvailability();
 }
 
 function waitForImage(image) {
@@ -310,6 +410,7 @@ async function loadPhotoFile(file) {
 
     if (previousUrl) URL.revokeObjectURL(previousUrl);
     state.photoObjectUrl = nextUrl;
+    state.photoFileName = file.name;
     ui.photoPreview.alt = `Local preview of ${file.name}`;
     ui.photoEmpty.hidden = true;
     ui.photoViewer.hidden = false;
@@ -321,9 +422,10 @@ async function loadPhotoFile(file) {
     ui.photoName.title = file.name;
     ui.photoDimensions.textContent = `${ui.photoPreview.naturalWidth} × ${ui.photoPreview.naturalHeight}`;
     ui.photoSize.textContent = formatFileSize(file.size);
-    ui.photoProcessing.textContent = "Local preview only";
+    ui.photoProcessing.textContent = "Local · analysis optional";
     setPhotoControlsEnabled(true);
     resetPhotoTransform();
+    invalidatePhotoDerivedState("The new photo has not been analyzed. Choose “Detect landmarks & render warp” in the Shape Laboratory.");
     announce(`${file.name} is displayed in the local photo preview.`);
   } catch (error) {
     ui.photoState.textContent = state.photoObjectUrl ? "Ready" : "Invalid image";
@@ -339,6 +441,7 @@ function removePhoto() {
     URL.revokeObjectURL(state.photoObjectUrl);
   }
   state.photoObjectUrl = null;
+  state.photoFileName = null;
   ui.photoPreview.removeAttribute("src");
   ui.photoPreview.alt = "Locally selected preview";
   ui.photoViewer.hidden = true;
@@ -351,9 +454,10 @@ function removePhoto() {
   ui.photoName.removeAttribute("title");
   ui.photoDimensions.textContent = "—";
   ui.photoSize.textContent = "—";
-  ui.photoProcessing.textContent = "Local preview";
+  ui.photoProcessing.textContent = "Local preview only";
   setPhotoControlsEnabled(false);
   resetPhotoTransform();
+  invalidatePhotoDerivedState("No photo-derived geometry is active. Synthetic samples and coordinate files remain available above.");
   announce("The local photo preview was cleared.");
 }
 
@@ -409,7 +513,7 @@ function handlePhotoStageKeydown(event) {
     "+": () => adjustPhotoZoom(state.photoZoom + 0.1),
     "=": () => adjustPhotoZoom(state.photoZoom + 0.1),
     "-": () => adjustPhotoZoom(state.photoZoom - 0.1),
-    "0": resetPhotoTransform,
+    "0": fitPhotoPreview,
   };
   const action = actions[event.key];
   if (!action) return;
@@ -441,6 +545,7 @@ function setRuntimeReady() {
   ui.runtimeMessage.textContent = "The simulated demonstration is ready to analyze.";
   ui.runtimeDot.className = "status-dot status-dot--ready";
   ui.runtimeLabel.textContent = "Runtime ready";
+  updatePhotoAnalysisAvailability();
 }
 
 function setRuntimeError(error) {
@@ -456,6 +561,7 @@ function setRuntimeError(error) {
   ui.retryRuntime.hidden = false;
   ui.runtimeDot.className = "status-dot status-dot--error";
   ui.runtimeLabel.textContent = "Runtime error";
+  updatePhotoAnalysisAvailability();
   showRuntimeModal();
   announce("The local analysis runtime could not be initialized.");
 }
@@ -551,10 +657,14 @@ async function loadSimulatedDemo(demoKey, runAfterLoad = true) {
 
     state.currentLandmarks = new Float64Array(flattened);
     state.currentDemo = demoKey;
+    state.inputKind = "synthetic";
     state.currentSource = demoKey === "blend"
       ? "Synthetic Blend"
       : `Synthetic Sample ${demoKey.toUpperCase()}`;
     state.result = null;
+    state.photoAnalysisSource = null;
+    state.photoLandmarks = null;
+    state.photoDenseLandmarkCount = 0;
 
     ui.demoButtons.forEach((button) => {
       button.classList.toggle("is-active", button.dataset.demo === demoKey);
@@ -566,6 +676,13 @@ async function loadSimulatedDemo(demoKey, runAfterLoad = true) {
     ui.analyzeButton.disabled = false;
     ui.exportButton.disabled = true;
     resetResultDisplay();
+    clearPhotoWarpDisplay(
+      state.photoObjectUrl
+        ? "A photo is loaded but is not the active input. Choose the local photo button to detect and render it."
+        : "No photo-derived geometry is active. Synthetic samples and coordinate files remain available above.",
+      state.photoObjectUrl ? "Photo available" : "Waiting for photo"
+    );
+    updatePhotoAnalysisAvailability();
     drawCurrentState();
 
     if (runAfterLoad) {
@@ -660,7 +777,11 @@ async function handleLandmarkFile(file) {
     state.currentLandmarks = coordinates;
     state.currentSource = file.name;
     state.currentDemo = null;
+    state.inputKind = "coordinate";
     state.result = null;
+    state.photoAnalysisSource = null;
+    state.photoLandmarks = null;
+    state.photoDenseLandmarkCount = 0;
 
     ui.demoButtons.forEach((button) => button.classList.remove("is-active"));
     ui.fileState.textContent = `${file.name} · ${coordinates.length / 2} landmarks loaded locally.`;
@@ -669,6 +790,13 @@ async function handleLandmarkFile(file) {
     ui.analyzeButton.disabled = !state.runtimeReady;
     ui.exportButton.disabled = true;
     resetResultDisplay();
+    clearPhotoWarpDisplay(
+      state.photoObjectUrl
+        ? "The coordinate file is active. Choose the local photo button to replace it with detected photo landmarks."
+        : "The coordinate file is active; no photo texture is available.",
+      state.photoObjectUrl ? "Photo available" : "Waiting for photo"
+    );
+    updatePhotoAnalysisAvailability();
     drawCurrentState();
 
     if (state.runtimeReady) {
@@ -722,6 +850,7 @@ async function runAnalysis() {
     state.result = result;
     renderResult(result);
     drawCurrentState();
+    renderCurrentPhotoWarp();
     ui.analysisState.textContent = "Complete";
     ui.configurationState.textContent = "Loaded";
     ui.exportButton.disabled = false;
@@ -765,12 +894,26 @@ function formatReferenceKey(key) {
   return "Pooled A + B";
 }
 
+function computeGeometricDisplacementIndex(partialProcrustesDistance) {
+  const distance = Math.max(0, Number(partialProcrustesDistance));
+  if (!Number.isFinite(distance)) return null;
+  return Math.min(10, (10 * distance) / Math.SQRT2);
+}
+
+function displacementIndexFromResult(result) {
+  const engineValue = Number(result?.geometric_displacement_index?.value);
+  if (Number.isFinite(engineValue)) return Math.min(10, Math.max(0, engineValue));
+  return computeGeometricDisplacementIndex(result?.distances?.partial_procrustes);
+}
+
 function resetResultDisplay() {
   ui.metricPartial.textContent = "—";
   ui.metricFull.textContent = "—";
   ui.metricMahalanobis.textContent = "—";
   ui.metricCentroid.textContent = "—";
   ui.metricRms.textContent = "—";
+  ui.metricDisplacementIndex.textContent = "—";
+  ui.displacementIndexFill.style.width = "0%";
   ui.gpaConverged.textContent = "—";
   ui.gpaIterations.textContent = "—";
   ui.referenceSize.textContent = "—";
@@ -778,7 +921,7 @@ function resetResultDisplay() {
   ui.analysisState.textContent = "Not run";
   ui.metricInterpretation.textContent = "Run the analysis to receive a concise explanation of the displayed distances and residuals.";
   ui.conclusionSource.textContent = state.currentSource || "Preparing";
-  ui.analysisConclusion.textContent = "The current synthetic configuration will be summarized after the local calculation finishes.";
+  ui.analysisConclusion.textContent = "The current configuration will be summarized after the local calculation finishes.";
   ui.pcaBars.replaceChildren();
   const message = document.createElement("p");
   message.className = "empty-copy";
@@ -787,6 +930,13 @@ function resetResultDisplay() {
 }
 
 function renderResult(result) {
+  const displacementIndex = displacementIndexFromResult(result);
+  ui.metricDisplacementIndex.textContent = displacementIndex === null
+    ? "—"
+    : displacementIndex.toFixed(1);
+  ui.displacementIndexFill.style.width = displacementIndex === null
+    ? "0%"
+    : `${displacementIndex * 10}%`;
   ui.metricPartial.textContent = formatMetric(result.distances.partial_procrustes);
   ui.metricFull.textContent = formatMetric(result.distances.full_procrustes);
   ui.metricMahalanobis.textContent = formatMetric(
@@ -821,6 +971,8 @@ function renderRunNarrative(result) {
   const residualRms = formatMetric(
     result.residual_shape_difference.root_mean_square_magnitude
   );
+  const displacementIndex = displacementIndexFromResult(result);
+  const displacementText = displacementIndex === null ? "unavailable" : displacementIndex.toFixed(1);
   const firstVariance = Number(
     result.tangent_space.pca_explained_variance_ratio[0] || 0
   ) * 100;
@@ -829,18 +981,143 @@ function renderRunNarrative(result) {
     `Against ${reference}, ${source} has an aligned partial Procrustes distance of ${partial} `
     + `and a residual RMS of ${residualRms}. Smaller values indicate closer geometric agreement `
     + `within this same simulated reference; Mahalanobis ${mahalanobis} adds covariance weighting `
-    + `but is not a percentile, probability, or rating.`;
+    + `but is not a percentile or probability. The geometric displacement index is ${displacementText}/10: `
+    + `a fixed rescaling of aligned distance, not an appearance or quality rating.`;
 
-  const configurationDescription = state.currentDemo === "blend"
-    ? "The 55% A / 45% B synthetic blend"
-    : source;
+  const configurationDescription = state.inputKind === "photo"
+    ? "The locally detected 68-point photo configuration"
+    : state.currentDemo === "blend"
+      ? "The 55% A / 45% B synthetic blend"
+      : source;
   ui.conclusionSource.textContent = source;
   ui.analysisConclusion.textContent =
     `${configurationDescription} was centered, scaled, and aligned to ${reference}; the reference GPA `
     + `converged in ${result.gpa.iterations} iterations. Its partial Procrustes distance is ${partial}, `
     + `its residual RMS is ${residualRms}, and PC1 describes ${firstVariance.toFixed(1)}% of simulated `
-    + `reference variance. These values summarize coordinate separation only and support no biological, `
-    + `clinical, identity, or aesthetic conclusion.`;
+    + `reference variance. Its geometric displacement index is ${displacementText}/10. These values `
+    + `summarize coordinate separation only and support no psychological, sociological, biological, `
+    + `clinical, identity, or appearance conclusion.`;
+}
+
+async function getPhotoWarpModule() {
+  if (!state.photoWarpModule) {
+    state.photoWarpModule = await import(PHOTO_WARP_MODULE_URL);
+  }
+  return state.photoWarpModule;
+}
+
+async function analyzePhotoLocally() {
+  if (state.photoWarpBusy) return;
+  if (!state.photoObjectUrl || !ui.photoPreview.naturalWidth) {
+    announce("Upload a photo in the Photo Preview tab first.");
+    selectView("photo", true);
+    return;
+  }
+  if (!state.runtimeReady) {
+    announce("Wait for the local statistical runtime to finish loading.");
+    return;
+  }
+
+  state.photoWarpBusy = true;
+  updatePhotoAnalysisAvailability();
+  ui.photoAnalysisStatus.textContent = "Loading model";
+  ui.photoWarpState.textContent = "Loading landmark model";
+  ui.photoWarpCaption.textContent = "Downloading the pinned face-landmark model; the selected photo remains in browser memory.";
+
+  try {
+    const module = await getPhotoWarpModule();
+    const analysisSource = module.createOrientedImageCanvas(
+      ui.photoPreview,
+      state.photoRotation,
+      1600
+    );
+    const faceLandmarker = await module.loadLocalFaceLandmarker();
+    ui.photoAnalysisStatus.textContent = "Detecting locally";
+    ui.photoWarpState.textContent = "Detecting one face";
+    await delay(20);
+    const detection = await module.detectDlib68FromImage(faceLandmarker, analysisSource);
+    const flattened = detection.landmarks.flat();
+    validateCoordinateArray(flattened);
+
+    state.photoAnalysisSource = analysisSource;
+    state.photoLandmarks = detection.landmarks;
+    state.photoDenseLandmarkCount = detection.denseLandmarkCount;
+    state.currentLandmarks = new Float64Array(flattened);
+    // Keep the local filename out of exported analysis records.
+    state.currentSource = "Local photo";
+    state.currentDemo = null;
+    state.inputKind = "photo";
+    state.result = null;
+
+    ui.demoButtons.forEach((button) => button.classList.remove("is-active"));
+    ui.landmarkFile.value = "";
+    ui.fileState.textContent = `${detection.denseLandmarkCount}-point local mesh sampled into 68 ordered landmarks.`;
+    ui.sourceLabel.textContent = state.currentSource;
+    ui.configurationState.textContent = "Photo loaded";
+    ui.photoProcessing.textContent = "Landmarks + warp · local";
+    ui.exportButton.disabled = true;
+    resetResultDisplay();
+    drawCurrentState();
+    await runAnalysis();
+
+    if (!state.result) {
+      throw new Error("The landmark mesh was detected, but the descriptive shape calculation did not complete.");
+    }
+    ui.photoAnalysisStatus.textContent = "Photo active";
+    ui.photoWarpState.textContent = "Rendered locally";
+    ui.photoWarpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    announce("Local photo landmarks analyzed and the geometric photo warp rendered.");
+  } catch (error) {
+    ui.photoAnalysisStatus.textContent = "Could not detect";
+    ui.photoWarpState.textContent = "Photo warp unavailable";
+    ui.photoWarpCaption.textContent = error instanceof Error ? error.message : String(error);
+    announce(ui.photoWarpCaption.textContent);
+  } finally {
+    state.photoWarpBusy = false;
+    updatePhotoAnalysisAvailability();
+  }
+}
+
+function renderCurrentPhotoWarp() {
+  if (
+    state.inputKind !== "photo"
+    || !state.photoWarpModule
+    || !state.photoAnalysisSource
+    || !state.photoLandmarks
+    || !state.result
+  ) {
+    return;
+  }
+
+  try {
+    const diagnostics = state.photoWarpModule.renderPhotoWarp({
+      canvas: ui.photoWarpCanvas,
+      imageSource: state.photoAnalysisSource,
+      sourceLandmarks: state.photoLandmarks,
+      residualVectors: state.result.residual_shape_difference.input_orientation_vectors,
+      centroidSize: state.result.input_geometry.centroid_size,
+      scale: Number(ui.vectorScale.value),
+      mode: state.photoWarpMode,
+      showMesh: ui.showPhotoMesh.checked,
+    });
+    state.photoWarpDiagnostics = diagnostics;
+    ui.photoWarpEmpty.hidden = true;
+    ui.photoWarpState.textContent = "Rendered locally";
+    ui.photoWarpRenderScale.textContent = `${diagnostics.appliedVisualizationScale.toFixed(2)}×`;
+    ui.photoWarpTriangles.textContent = String(diagnostics.triangleCount);
+    ui.photoWarpRms.textContent = `${diagnostics.rmsAppliedDisplacementPixels.toFixed(1)} px`;
+    const safetyNote = diagnostics.effectiveScaleFactor < 0.999
+      ? ` The requested warp was reduced to ${diagnostics.appliedVisualizationScale.toFixed(2)}× to prevent triangle fold-over.`
+      : "";
+    ui.photoWarpCaption.textContent =
+      `${state.photoWarpMode === "split" ? "Left is original; right is warped." : `Showing ${state.photoWarpMode}.`} `
+      + `The texture follows ${diagnostics.triangleCount} local triangles and the RMS rendered shift is `
+      + `${diagnostics.rmsAppliedDisplacementPixels.toFixed(1)} pixels.${safetyNote} This illustrates `
+      + `coordinate displacement only; it is not a recommended or improved face.`;
+  } catch (error) {
+    ui.photoWarpState.textContent = "Render error";
+    ui.photoWarpCaption.textContent = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function renderPcaScores(scores, explainedRatios) {
@@ -1152,7 +1429,16 @@ function exportAnalysis() {
     application: "bio-social-aesthetic-manifold",
     exported_at_utc: new Date().toISOString(),
     source_label: state.currentSource,
+    source_kind: state.inputKind,
     study_context_metadata: getStudyContextMetadata(),
+    display_derived_metrics: {
+      geometric_displacement_index_0_to_10: displacementIndexFromResult(state.result),
+      definition: "10 * min(1, partial_procrustes / sqrt(2))",
+      normative_interpretation: false,
+    },
+    photo_render_diagnostics: state.inputKind === "photo"
+      ? state.photoWarpDiagnostics
+      : null,
     analysis: state.result,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -1195,16 +1481,10 @@ function bindInterfaceEvents() {
     const [file] = ui.photoFile.files;
     if (file) loadPhotoFile(file);
   });
-  ui.photoFit.addEventListener("click", resetPhotoTransform);
+  ui.photoFit.addEventListener("click", fitPhotoPreview);
   ui.photoRemove.addEventListener("click", removePhoto);
-  ui.photoRotateLeft.addEventListener("click", () => {
-    state.photoRotation -= 90;
-    updatePhotoTransform();
-  });
-  ui.photoRotateRight.addEventListener("click", () => {
-    state.photoRotation += 90;
-    updatePhotoTransform();
-  });
+  ui.photoRotateLeft.addEventListener("click", () => rotatePhotoPreview(-90));
+  ui.photoRotateRight.addEventListener("click", () => rotatePhotoPreview(90));
   ui.photoZoom.addEventListener("input", () => adjustPhotoZoom(ui.photoZoom.value));
   ui.photoStage.addEventListener("wheel", (event) => {
     if (!state.photoObjectUrl) return;
@@ -1217,6 +1497,7 @@ function bindInterfaceEvents() {
   ui.photoStage.addEventListener("pointercancel", endPhotoPan);
   ui.photoStage.addEventListener("keydown", handlePhotoStageKeydown);
   ui.photoPreview.addEventListener("dragstart", (event) => event.preventDefault());
+  ui.analyzePhotoButton.addEventListener("click", analyzePhotoLocally);
 
   ["dragenter", "dragover"].forEach((eventName) => {
     ui.photoStage.addEventListener(eventName, (event) => {
@@ -1246,8 +1527,21 @@ function bindInterfaceEvents() {
   ui.referencePopulation.addEventListener("change", () => {
     if (state.runtimeReady && state.currentLandmarks) runAnalysis();
   });
-  ui.vectorScale.addEventListener("change", drawCurrentState);
+  ui.vectorScale.addEventListener("change", () => {
+    drawCurrentState();
+    renderCurrentPhotoWarp();
+  });
   ui.showWarp.addEventListener("change", drawCurrentState);
+  ui.showPhotoMesh.addEventListener("change", renderCurrentPhotoWarp);
+  ui.photoWarpModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.photoWarpMode = button.dataset.photoWarpMode;
+      ui.photoWarpModeButtons.forEach((candidate) => {
+        candidate.classList.toggle("is-active", candidate === button);
+      });
+      renderCurrentPhotoWarp();
+    });
+  });
   ui.retryRuntime.addEventListener("click", initializeRuntime);
 
   ui.landmarkFile.addEventListener("change", () => {
@@ -1323,6 +1617,8 @@ async function startApplication() {
   bindInterfaceEvents();
   resetPhotoTransform();
   resetResultDisplay();
+  clearPhotoWarpDisplay();
+  updatePhotoAnalysisAvailability();
   await initializeRuntime();
 }
 

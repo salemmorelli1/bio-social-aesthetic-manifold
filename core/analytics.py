@@ -15,6 +15,8 @@ Implemented methods
 5. A descriptive Mahalanobis distance based on a structured, shrinkage-
    regularized covariance matrix.
 6. Residual shape-difference vectors in normalized input orientation.
+7. A bounded geometric displacement index that rescales partial Procrustes
+   distance for display without ranking, valuation, or appearance inference.
 
 The public ``run_pipeline_from_js`` function accepts JSON, ordinary Python
 sequences, NumPy arrays, or Pyodide JavaScript proxies and returns JSON.
@@ -33,7 +35,7 @@ from numpy.typing import NDArray
 
 FloatArray = NDArray[np.float64]
 
-ENGINE_VERSION: Final[str] = "1.0.0"
+ENGINE_VERSION: Final[str] = "1.1.0"
 LANDMARK_COUNT: Final[int] = 68
 SPATIAL_DIMENSIONS: Final[int] = 2
 AMBIENT_DIMENSION: Final[int] = LANDMARK_COUNT * SPATIAL_DIMENSIONS
@@ -624,6 +626,9 @@ class DescriptiveMorphometricEngine:
             la.norm(aligned - model.gpa.consensus, ord="fro", check_finite=False)
         )
         full_procrustes = float(np.sqrt(max(0.0, 1.0 - inner_product**2)))
+        geometric_displacement_index = float(
+            10.0 * min(1.0, partial_procrustes / np.sqrt(2.0))
+        )
 
         tangent_coordinates, _, _ = _project_to_tangent(
             aligned,
@@ -664,7 +669,7 @@ class DescriptiveMorphometricEngine:
         return {
             "schema_version": "1.0",
             "engine_version": ENGINE_VERSION,
-            "analysis_kind": "descriptive_synthetic_shape_comparison",
+            "analysis_kind": "descriptive_shape_comparison_with_simulated_reference",
             "reference": {
                 "key": model.key,
                 "is_simulated": True,
@@ -696,6 +701,15 @@ class DescriptiveMorphometricEngine:
                     np.sqrt(mahalanobis_squared)
                 ),
                 "regularized_mahalanobis_squared": mahalanobis_squared,
+            },
+            "geometric_displacement_index": {
+                "value": geometric_displacement_index,
+                "minimum": 0.0,
+                "maximum": 10.0,
+                "formula": "10 * min(1, partial_procrustes / sqrt(2))",
+                "direction": "larger means greater aligned geometric separation only",
+                "normative": False,
+                "appearance_rating": False,
             },
             "tangent_space": {
                 "dimension": TANGENT_DIMENSION,
