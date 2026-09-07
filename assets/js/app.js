@@ -123,12 +123,17 @@ function cacheInterface() {
   ui.metricDisplacementIndex = getElement("metric-displacement-index");
   ui.displacementIndexFill = getElement("displacement-index-fill");
   ui.metricInterpretation = getElement("metric-interpretation");
+  ui.analysisWarnings = getElement("analysis-warnings");
+  ui.analysisWarningList = getElement("analysis-warning-list");
   ui.conclusionSource = getElement("conclusion-source");
   ui.analysisConclusion = getElement("analysis-conclusion");
   ui.gpaConverged = getElement("gpa-converged");
   ui.gpaIterations = getElement("gpa-iterations");
   ui.referenceSize = getElement("reference-size");
   ui.covarianceCondition = getElement("covariance-condition");
+  ui.covarianceShrinkage = getElement("covariance-shrinkage");
+  ui.chartStatus = getElement("chart-status");
+  ui.referencePosition = getElement("reference-position");
   ui.environmentalStress = getElement("environmental-stress");
   ui.environmentalStressValue = getElement("environmental-stress-value");
   ui.pathogenPrevalence = getElement("pathogen-prevalence");
@@ -919,6 +924,11 @@ function resetResultDisplay() {
   ui.gpaIterations.textContent = "—";
   ui.referenceSize.textContent = "—";
   ui.covarianceCondition.textContent = "—";
+  ui.covarianceShrinkage.textContent = "—";
+  ui.chartStatus.textContent = "—";
+  ui.referencePosition.textContent = "—";
+  ui.analysisWarnings.hidden = true;
+  ui.analysisWarningList.replaceChildren();
   ui.analysisState.textContent = "Not run";
   ui.metricInterpretation.textContent = "Run the analysis to receive a concise explanation of the displayed distances and residuals.";
   ui.conclusionSource.textContent = state.currentSource || "Preparing";
@@ -955,13 +965,44 @@ function renderResult(result) {
     result.covariance_diagnostics.condition_number,
     2
   );
+  ui.covarianceShrinkage.textContent = formatMetric(
+    result.covariance_diagnostics.shrinkage_to_diagonal,
+    4
+  );
+  const withinTangentChart = result.chart_diagnostics
+    ?.tangent_projection_within_small_distortion_region;
+  ui.chartStatus.textContent = withinTangentChart === true
+    ? "Within cutoff"
+    : withinTangentChart === false
+      ? "Outside cutoff"
+      : "—";
+  const referencePercentile = Number(
+    result.geometric_displacement_index?.reference_percentile
+  );
+  ui.referencePosition.textContent = Number.isFinite(referencePercentile)
+    ? `${referencePercentile.toFixed(1)}% below`
+    : "—";
   ui.tangentDimension.textContent = `${result.tangent_space.dimension} dimensions`;
   ui.referenceKey.textContent = formatReferenceKey(result.reference.key);
   renderPcaScores(
     result.tangent_space.pca_scores,
     result.tangent_space.pca_explained_variance_ratio
   );
+  renderAnalysisWarnings(result.warnings);
   renderRunNarrative(result);
+}
+
+function renderAnalysisWarnings(warnings) {
+  const messages = Array.isArray(warnings)
+    ? warnings.filter((warning) => typeof warning === "string" && warning.trim())
+    : [];
+  ui.analysisWarningList.replaceChildren();
+  messages.forEach((warning) => {
+    const item = document.createElement("li");
+    item.textContent = warning;
+    ui.analysisWarningList.append(item);
+  });
+  ui.analysisWarnings.hidden = messages.length === 0;
 }
 
 function renderRunNarrative(result) {
@@ -974,6 +1015,13 @@ function renderRunNarrative(result) {
   );
   const displacementIndex = displacementIndexFromResult(result);
   const displacementText = displacementIndex === null ? "unavailable" : displacementIndex.toFixed(1);
+  const referencePercentile = Number(
+    result.geometric_displacement_index?.reference_percentile
+  );
+  const referencePositionText = Number.isFinite(referencePercentile)
+    ? ` Its aligned distance is greater than ${referencePercentile.toFixed(1)}% of configurations `
+      + `in this finite simulated reference; that in-sample position is not a population percentile.`
+    : "";
   const firstVariance = Number(
     result.tangent_space.pca_explained_variance_ratio[0] || 0
   ) * 100;
@@ -983,7 +1031,8 @@ function renderRunNarrative(result) {
     + `and a residual RMS of ${residualRms}. Smaller values indicate closer geometric agreement `
     + `within this same simulated reference; Mahalanobis ${mahalanobis} adds covariance weighting `
     + `but is not a percentile or probability. The geometric displacement index is ${displacementText}/10: `
-    + `a fixed rescaling of aligned distance, not an appearance or quality rating.`;
+    + `a fixed rescaling of aligned distance, not an appearance or quality rating.`
+    + referencePositionText;
 
   const configurationDescription = state.inputKind === "photo"
     ? "The locally detected 68-point photo configuration"

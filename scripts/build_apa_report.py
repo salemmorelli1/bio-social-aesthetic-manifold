@@ -22,7 +22,6 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,15 +82,20 @@ def register_report_fonts() -> None:
             )
         return
 
-    # ReportLab bundles this complete family, making report rebuilding portable
-    # on Windows, macOS, and Linux even when Nimbus Roman is unavailable.
-    bundled = Path(reportlab.__file__).resolve().parent / "fonts"
-    for public_name, filename in (
-        (BODY_FONT, "Vera.ttf"),
-        (BODY_BOLD, "VeraBd.ttf"),
-        (BODY_ITALIC, "VeraIt.ttf"),
+    # Fallback. The page layout is tuned against Times metrics, and Nimbus Roman
+    # is metrically compatible with Times, so the substitute must be too. The
+    # bundled Bitstream Vera family is NOT: it is a sans face roughly eight
+    # percent wider, which lengthens every wrapped line and overflows the body
+    # margin on hosts without the URW fonts. ReportLab always ships the base-14
+    # Type 1 metrics, so alias the public names onto Times instead.
+    for public_name, core_name in (
+        (BODY_FONT, "Times-Roman"),
+        (BODY_BOLD, "Times-Bold"),
+        (BODY_ITALIC, "Times-Italic"),
     ):
-        pdfmetrics.registerFont(TTFont(public_name, str(bundled / filename)))
+        pdfmetrics.registerFont(
+            pdfmetrics.Font(public_name, core_name, "WinAnsiEncoding")
+        )
 
 
 def paragraph(text: str) -> dict[str, Any]:
@@ -127,6 +131,56 @@ def reference(text: str) -> dict[str, Any]:
     return {"kind": "reference", "text": " ".join(text.split())}
 
 
+# Single source of truth for every worked-example value printed in the report.
+# The build-time drift check below compares this fixture with the live engine.
+WORKED_EXAMPLE: dict[str, Any] = {
+    "engine_version": "2.0.0",
+    "gpa_iterations": 4,
+    "reference_sample_size": 320,
+    "shrinkage_intensity": 0.03200686389237932,
+    "pc1_explained_variance_ratio": 0.2727981812317445,
+    "inputs": {
+        "a": {
+            "label": "Sample A",
+            "partial_procrustes": 0.054565314792775904,
+            "full_procrustes": 0.05454500334658048,
+            "regularized_mahalanobis": 10.201310283098197,
+            "centroid_size": 0.8956481395542113,
+            "residual_rms": 0.006617016364285085,
+            "geometric_displacement_index": 0.3858350410755047,
+            "pc1_score": 0.01342480535539741,
+        },
+        "b": {
+            "label": "Sample B",
+            "partial_procrustes": 0.0499959877547803,
+            "full_procrustes": 0.04998036407476828,
+            "regularized_mahalanobis": 12.765025588550127,
+            "centroid_size": 0.8981573560192828,
+            "residual_rms": 0.0060629040697072435,
+            "geometric_displacement_index": 0.3535250197352474,
+            "pc1_score": -0.004838824382566118,
+        },
+        "blend": {
+            "label": "Blend",
+            "partial_procrustes": 0.06440561718765489,
+            "full_procrustes": 0.06437221354039414,
+            "regularized_mahalanobis": 9.75919181210427,
+            "centroid_size": 0.8397417779747599,
+            "residual_rms": 0.007810328310229334,
+            "geometric_displacement_index": 0.4554164865989563,
+            "pc1_score": -0.007410982688225582,
+        },
+    },
+}
+WORKED_EXAMPLE_TOLERANCE = 1.0e-12
+
+
+def worked(input_key: str, field: str) -> float:
+    """Return one numeric value from the report's pinned worked fixture."""
+
+    return float(WORKED_EXAMPLE["inputs"][input_key][field])
+
+
 PAGES: list[dict[str, Any]] = [
     {
         "number": 2,
@@ -150,9 +204,12 @@ PAGES: list[dict[str, Any]] = [
                 "and remain in browser memory; Python receives coordinates, not pixels. A proportional "
                 "warp visualizes the same residual field used by the numerical output. The worked "
                 "pooled-reference Blend example yields partial "
-                "Procrustes distance 0.08805, full Procrustes distance 0.08797, regularized "
-                "Mahalanobis distance 8.693, residual root mean square 0.01068, and Geometric "
-                "Displacement Index 0.62 of 10. These are uncalibrated geometric magnitudes rather "
+                f"Procrustes distance {worked('blend', 'partial_procrustes'):.5f}, full Procrustes "
+                f"distance {worked('blend', 'full_procrustes'):.5f}, regularized Mahalanobis "
+                f"distance {worked('blend', 'regularized_mahalanobis'):.3f}, residual root mean "
+                f"square {worked('blend', 'residual_rms'):.5f}, and Geometric Displacement Index "
+                f"{worked('blend', 'geometric_displacement_index'):.2f} of 10. These are "
+                "uncalibrated geometric magnitudes rather "
                 "than percentiles, probabilities, classifications, or appearance ratings."
             ),
             heading("Keywords"),
@@ -221,7 +278,8 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "None of these quantities has an empirical sampling interpretation here. The "
                 "reference covariance is generated rather than observed, the shrinkage amount is "
-                "fixed rather than tuned against an external objective, and the analyzed "
+                "estimated within that simulation rather than validated against an external "
+                "objective, and the analyzed "
                 "configuration is not sampled from a declared population. Consequently, a distance "
                 "cannot be labeled typical, unusual, desirable, or undesirable. The correct "
                 "conclusion is comparative and conditional: for this input, this simulated "
@@ -278,9 +336,12 @@ PAGES: list[dict[str, Any]] = [
                 "endpoints. Eye and lip paths are closed. Coordinate files may be JSON, CSV, or "
                 "plain text, but after parsing they must contain exactly 136 finite numbers. The photo "
                 "route uses a fixed list of 68 unique MediaPipe mesh indices as an engineering "
-                "correspondence; it is not native Dlib detector output. Missing landmarks, reordered "
-                "features, or a mirrored indexing scheme change the mathematical object and therefore "
-                "invalidate direct comparison (Bookstein, 1991; Zelditch et al., 2012)."
+                "correspondence; it is not native Dlib detector output. Template A samples those same "
+                "indices from MediaPipe's canonical OBJ at commit a908d668, retains x and y, reverses "
+                "the image y-axis, then centers and unit-scales the result. The Apache-2.0 provenance "
+                "is recorded in THIRD_PARTY_NOTICES.md. This source match does not make the adapter a "
+                "validated measurement model. Missing or reordered landmarks invalidate direct "
+                "comparison (Bookstein, 1991; Zelditch et al., 2012)."
             ),
         ],
     },
@@ -394,9 +455,10 @@ PAGES: list[dict[str, Any]] = [
                 "These diagnostics should be read before interpreting distances. A nonconverged GPA, "
                 "nonfinite output, wrong tangent dimension, or failed Cholesky factorization would "
                 "make downstream summaries unreliable. In the deterministic pooled model used for "
-                "the worked example, GPA converges in four iterations. Reproducibility follows from "
-                "fixed simulation seeds and deterministic linear algebra, subject only to negligible "
-                "platform-level floating-point differences."
+                "the worked example, GPA converges in four iterations. Fixed RandomState seeds stabilize "
+                "the simulated draw stream, but SVD and eigendecomposition remain numerical-library "
+                "dependent. The regression fixture therefore uses a tight tolerance, and exact artifact "
+                "reproduction requires the pinned development stack."
             ),
         ],
     },
@@ -438,12 +500,13 @@ PAGES: list[dict[str, Any]] = [
                 "0 and 1, the radial direction equals the vectorized consensus, and the infinitesimal "
                 "rotation direction rotates every consensus row by 90 degrees."
             ),
-            equation("N = [t_x, t_y, vec(M), vec(JM)],     B = null(N^T)"),
+            equation("N = [t_x, t_y, vec(M), vec(JM)],     B = canonical MGS(N-perp)"),
             paragraph(
-                "SciPy's null-space routine returns an orthonormal matrix B with 136 rows and 132 "
-                "columns. By construction, B^T B = I and B is orthogonal to each nuisance direction. "
-                "If the returned shape is not exactly 136 by 132, the engine raises a linear-algebra "
-                "error instead of continuing with an ambiguous representation."
+                "The engine first orthonormalizes the four nuisance directions, then applies modified "
+                "Gram-Schmidt with one reorthogonalization pass to the 136 standard basis vectors in "
+                "index order. The accepted 132 columns form B, with B^T B = I and B orthogonal to each "
+                "nuisance direction. This fixes the chart orientation conditional on the fitted "
+                "consensus instead of accepting an arbitrary null-space basis."
             ),
             paragraph(
                 "For aligned preshape Y, let a be the inner product between vec(Y) and vec(M). Central "
@@ -479,8 +542,10 @@ PAGES: list[dict[str, Any]] = [
                 "same axis. Therefore, a positive score is not better than a negative score. Score "
                 "magnitude describes coordinate displacement along that simulated axis, while the "
                 "percentage describes how much simulated reference variance the axis accounts for. "
-                "The JSON response returns the first 10 scores, eigenvalues, and ratios; the interface "
-                "plots the first six around a zero-centered bar."
+                "For stable presentation, each eigenvector is signed so its largest-magnitude loading "
+                "is positive; exactly repeated eigenvalues can still leave a multidimensional eigenspace "
+                "without a unique axis orientation. The JSON response returns the first 10 scores, "
+                "eigenvalues, and ratios."
             ),
         ],
     },
@@ -507,7 +572,8 @@ PAGES: list[dict[str, Any]] = [
                 "Reference A uses 160 shapes around Synthetic Template A with seed 31041. Reference B "
                 "uses 160 around Synthetic Template B with seed 72107. The pooled model concatenates "
                 "both ensembles and therefore has n = 320. This construction produces cross-landmark "
-                "covariance while remaining fully reproducible. It is not fitted to Dlib users, a "
+                "covariance and a stable legacy random stream within the declared stack. It is not "
+                "fitted to Dlib users, a "
                 "biological group, or any empirical sample. Synthetic structure supports software "
                 "demonstration, not population inference (Bishop, 2006)."
             ),
@@ -524,15 +590,17 @@ PAGES: list[dict[str, Any]] = [
                 "therefore shrinks S toward its own diagonal rather than toward a scalar identity "
                 "matrix."
             ),
-            equation("Sigma-hat = 0.80 S + 0.20 diag(S) + epsilon I"),
-            figure("covariance", 142.0),
+            equation("Sigma-hat = (1 - lam) S + lam diag(S) + epsilon I"),
+            equation("lam* = clip_[0,1]{ sum_(i != j) Var-hat(s_ij) / sum_(i != j) s_ij^2 }"),
+            figure("covariance", 104.0),
             paragraph(
                 "Diagonal-target shrinkage preserves coordinate-specific variances while reducing "
-                "off-diagonal magnitude by 20%. The ridge epsilon equals 1e-6 times the average "
-                "post-shrinkage variance, bounded below by machine precision. The matrix is explicitly "
-                "symmetrized before Cholesky factorization. This fixed rule is transparent and stable, "
-                "although an empirical analysis should estimate or cross-validate shrinkage under a "
-                "predeclared criterion (Ledoit & Wolf, 2004; Schafer & Strimmer, 2005)."
+                "off-diagonal magnitude by lam. The intensity is not fixed by hand: lam is the "
+                "analytic minimum-risk estimate for this target, which for the pooled reference is "
+                f"{WORKED_EXAMPLE['shrinkage_intensity']:.4f}. The ridge epsilon equals 1e-6 times "
+                "the average post-shrinkage variance, "
+                "bounded below by machine precision, and the matrix is symmetrized before Cholesky "
+                "factorization (Ledoit & Wolf, 2004; Schafer & Strimmer, 2005)."
             ),
             paragraph(
                 "The diagnostics report the ridge, the condition number, and the fraction of the "
@@ -566,7 +634,9 @@ PAGES: list[dict[str, Any]] = [
                 "a chi-square distribution because the reference is simulated, regularized, and not "
                 "linked to a sampling model for the input. The displayed value therefore answers only "
                 "how large this tangent displacement is under the selected simulated covariance metric "
-                "(Mahalanobis, 1936; Mardia et al., 1979)."
+                "(Mahalanobis, 1936; Mardia et al., 1979). The returned reference position is an "
+                "in-sample rank among simulated reference distances, not a population percentile or "
+                "p-value; held-out simulations serve only as a numerical scale check."
             ),
         ],
     },
@@ -659,7 +729,8 @@ PAGES: list[dict[str, Any]] = [
         "title": "Worked Deterministic Example",
         "blocks": [
             paragraph(
-                "Table 1 records engine version 1.1.0 results for all three built-in configurations "
+                f"Table 1 records engine version {WORKED_EXAMPLE['engine_version']} results for all "
+                "three built-in configurations "
                 "against Pooled A+B. The values were produced by run_pipeline_from_js with the fixed "
                 "seeds documented above. Rebuilding the report imports the current analytics module "
                 "and verifies the Blend values before writing the PDF."
@@ -667,20 +738,31 @@ PAGES: list[dict[str, Any]] = [
             table(
                 ["Input", "Partial", "Full", "Mahalanobis", "Centroid", "RMS"],
                 [
-                    ["Sample A", "0.06179", "0.06176", "7.460", "1.028", "0.00749"],
-                    ["Sample B", "0.07573", "0.07568", "8.955", "0.961", "0.00918"],
-                    ["Blend", "0.08805", "0.08797", "8.693", "1.180", "0.01068"],
+                    [
+                        str(WORKED_EXAMPLE["inputs"][key]["label"]),
+                        f"{worked(key, 'partial_procrustes'):.5f}",
+                        f"{worked(key, 'full_procrustes'):.5f}",
+                        f"{worked(key, 'regularized_mahalanobis'):.3f}",
+                        f"{worked(key, 'centroid_size'):.3f}",
+                        f"{worked(key, 'residual_rms'):.5f}",
+                    ]
+                    for key in ("a", "b", "blend")
                 ],
                 [86, 69, 69, 82, 76, 70],
             ),
             paragraph(
-                "For Blend, the pooled reference GPA converges in four iterations with n = 320. The "
-                "partial distance 0.08805 and RMS 0.01068 summarize aligned unit-space separation. "
-                "Regularized Mahalanobis 8.693 is larger numerically because it measures the same "
+                f"For Blend, the pooled reference GPA converges in {WORKED_EXAMPLE['gpa_iterations']} "
+                f"iterations with n = {WORKED_EXAMPLE['reference_sample_size']}. The partial distance "
+                f"{worked('blend', 'partial_procrustes'):.5f} and RMS "
+                f"{worked('blend', 'residual_rms'):.5f} summarize aligned unit-space separation. "
+                f"Regularized Mahalanobis {worked('blend', 'regularized_mahalanobis'):.3f} is larger "
+                "numerically because it measures the same "
                 "tangent displacement in standardized covariance geometry; it is not on the same scale "
-                "as a Procrustes distance. PC1 accounts for 24.7% of pooled simulated variance and the "
-                "Blend PC1 score is +0.04186. Rescaling its partial distance by "
-                "10 min(1, dP / sqrt(2)) gives a Geometric Displacement Index of 0.62."
+                f"as a Procrustes distance. PC1 accounts for "
+                f"{100 * float(WORKED_EXAMPLE['pc1_explained_variance_ratio']):.1f}% of pooled "
+                f"simulated variance and the Blend PC1 score is {worked('blend', 'pc1_score'):.5f}. "
+                "Rescaling its partial distance by 10 min(1, dP / sqrt(2)) gives a Geometric "
+                f"Displacement Index of {worked('blend', 'geometric_displacement_index'):.2f}."
             ),
             paragraph(
                 "The only defensible conclusion is that the generated Blend differs from the pooled "
@@ -761,10 +843,12 @@ PAGES: list[dict[str, Any]] = [
             ),
             bullets(
                 "GPA prohibits reflections and exposes convergence status and iteration count.",
-                "The tangent null space must have exactly 132 columns.",
+                "The canonical tangent basis must have exactly 132 orthonormal columns.",
                 "Covariance is shrunk, ridge-stabilized, symmetrized, and Cholesky-factorized.",
                 "Linear solves replace an explicitly constructed covariance inverse.",
-                "JSON serialization rejects nonfinite values, and deterministic seeds support reruns.",
+                "Reference-range and tangent-chart warnings accompany extrapolating inputs.",
+                "The reported reference position is explicitly labeled in-sample and simulated.",
+                "JSON rejects nonfinite values, and fixed RandomState seeds stabilize test streams.",
                 "Photo shifts are capped and triangle orientation is protected by a scale line search.",
             ),
             paragraph(
@@ -808,10 +892,11 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
                 "reference key, reference n, and deterministic seeds are returned with each result. "
-                "The Git repository records source changes, while the build script calculates a "
-                "SHA-256 digest for this PDF after verifying its exact 27-page count. A future empirical "
-                "project should add input-data checksums, environment lock files, preregistered analysis "
-                "decisions, and independent replication."
+                "Seventy-five tests cover invariances, algebraic identities, the canonical template "
+                "digest, tangent-basis properties, malformed inputs, warning paths, and the browser JSON "
+                "contract. The report builder verifies its worked fixture and exact 27-page count before "
+                "printing a SHA-256 digest. requirements-dev.txt pins the authoring stack; neither seeds "
+                "nor sign conventions alone promise cross-platform bitwise equality."
             ),
         ],
     },
@@ -832,17 +917,20 @@ PAGES: list[dict[str, Any]] = [
                 "target population, or external validity. It assumes exact landmark correspondence and "
                 "does not model landmark acquisition error, perspective, expression, occlusion, "
                 "missingness, or repeated measurements. The MediaPipe-to-68 adapter is approximate, "
-                "and piecewise-affine image warping can contain seams or artifacts. The fixed 20% "
-                "shrinkage rule is demonstrative "
-                "rather than data-adaptive. Tangent coordinates are local and may distort large "
+                "and piecewise-affine image warping can contain seams or artifacts. The analytic "
+                "shrinkage estimate is fitted to a simulated ensemble and has no external validation. "
+                "Tangent coordinates are local and may distort large "
                 "geodesic separations."
             ),
             paragraph(
                 "For the deterministic pooled Blend example, the conclusion is narrow: after centering, "
                 "unit scaling, and proper rotation, the synthetic Blend is separated from the pooled "
-                "synthetic consensus by partial Procrustes 0.08805 and residual RMS 0.01068, while its "
-                "covariance-weighted tangent distance is 8.693. Its neutral Geometric Displacement "
-                "Index is 0.62 of 10. The proportional warp visualizes this residual direction without "
+                f"synthetic consensus by partial Procrustes "
+                f"{worked('blend', 'partial_procrustes'):.5f} and residual RMS "
+                f"{worked('blend', 'residual_rms'):.5f}, while its covariance-weighted tangent "
+                f"distance is {worked('blend', 'regularized_mahalanobis'):.3f}. Its neutral Geometric "
+                f"Displacement Index is {worked('blend', 'geometric_displacement_index'):.2f} of 10. "
+                "The proportional warp visualizes this residual direction without "
                 "altering the calculation; none of these values evaluates appearance."
             ),
             paragraph(
@@ -913,6 +1001,12 @@ PAGES: list[dict[str, Any]] = [
                 "Google. (n.d.). Face Landmarker for Web. Google AI Edge. Retrieved "
                 "September 6, 2026, from https://ai.google.dev/edge/mediapipe/solutions/"
                 "vision/face_landmarker/web_js"
+            ),
+            reference(
+                "MediaPipe Authors. (2020). Canonical face model [OBJ data file]. Google. "
+                "Git commit a908d668c730da128dfa8d9f6bd25d519d006692. "
+                "https://github.com/google-ai-edge/mediapipe/blob/a908d668c730da128dfa8d9f6bd25d519d006692/"
+                "mediapipe/modules/face_geometry/data/canonical_face_model.obj"
             ),
             reference(
                 "Jolliffe, I. T. (2002). Principal component analysis (2nd ed.). Springer. "
@@ -1360,7 +1454,7 @@ def draw_content_page(pdf: canvas.Canvas, page: dict[str, Any]) -> None:
             height = float(block["height"])
             FIGURE_DRAWERS[block["name"]](pdf, y, height)
             y -= height
-            if block["name"] == "warp":
+            if block["name"] in {"covariance", "warp"}:
                 y -= 18
         else:
             raise ValueError(f"Unknown report block kind: {kind}")
@@ -1374,26 +1468,93 @@ def draw_content_page(pdf: canvas.Canvas, page: dict[str, Any]) -> None:
 
 
 def verify_worked_example() -> None:
-    payload = json.loads(get_simulated_demo_json("blend"))
-    result = json.loads(run_pipeline_from_js(payload["landmarks"], "pooled"))
-    expected = {
-        "partial_procrustes": 0.08805297601002661,
-        "full_procrustes": 0.08796759668162828,
-        "regularized_mahalanobis": 8.69257032971642,
+    """Refuse to build if the engine no longer reproduces the quoted values.
+
+    ``RandomState`` stabilizes the simulated draw stream for this test fixture,
+    while the tolerance accommodates ordinary floating-point variation. Exact
+    artifact reproduction additionally requires the pinned development stack;
+    NEP 19 does not promise whole-program bitwise equality across platforms.
+    """
+
+    mappings = {
+        "partial_procrustes": ("distances", "partial_procrustes"),
+        "full_procrustes": ("distances", "full_procrustes"),
+        "regularized_mahalanobis": ("distances", "regularized_mahalanobis"),
+        "centroid_size": ("input_geometry", "centroid_size"),
+        "residual_rms": (
+            "residual_shape_difference",
+            "root_mean_square_magnitude",
+        ),
+        "geometric_displacement_index": (
+            "geometric_displacement_index",
+            "value",
+        ),
+        "pc1_score": ("tangent_space", "pca_scores"),
     }
-    for key, expected_value in expected.items():
-        observed = float(result["distances"][key])
-        if not np.isclose(observed, expected_value, rtol=0.0, atol=1e-12):
+    for input_key, expected in WORKED_EXAMPLE["inputs"].items():
+        payload = json.loads(get_simulated_demo_json(input_key))
+        result = json.loads(run_pipeline_from_js(payload["landmarks"], "pooled"))
+        if "error" in result:
+            raise RuntimeError(f"Engine returned an error: {result['error']}")
+        if result["engine_version"] != WORKED_EXAMPLE["engine_version"]:
+            raise RuntimeError("Worked example engine version drifted.")
+        if result["gpa"]["iterations"] != WORKED_EXAMPLE["gpa_iterations"]:
+            raise RuntimeError("Worked example GPA iteration count drifted.")
+
+        for field, path in mappings.items():
+            value = result[path[0]][path[1]]
+            observed = float(value[0] if field == "pc1_score" else value)
+            expected_value = float(expected[field])
+            if not np.isclose(
+                observed,
+                expected_value,
+                rtol=0.0,
+                atol=WORKED_EXAMPLE_TOLERANCE,
+            ):
+                raise RuntimeError(
+                    f"Worked example drift for {input_key}.{field}: "
+                    f"{observed} != {expected_value}"
+                )
+
+        if result["warnings"]:
             raise RuntimeError(
-                f"Worked example drift for {key}: {observed} != {expected_value}"
+                f"The {input_key} example raised chart warnings: "
+                f"{result['warnings']}"
             )
-    observed_index = float(result["geometric_displacement_index"]["value"])
-    expected_index = 10.0 * min(1.0, expected["partial_procrustes"] / np.sqrt(2.0))
-    if not np.isclose(observed_index, expected_index, rtol=0.0, atol=1e-12):
-        raise RuntimeError(
-            f"Worked example drift for geometric displacement index: "
-            f"{observed_index} != {expected_index}"
+
+    blend = json.loads(
+        run_pipeline_from_js(
+            json.loads(get_simulated_demo_json("blend"))["landmarks"],
+            "pooled",
         )
+    )
+    observed_ratio = float(
+        blend["tangent_space"]["pca_explained_variance_ratio"][0]
+    )
+    observed_shrinkage = float(
+        blend["covariance_diagnostics"]["shrinkage_to_diagonal"]
+    )
+    for label, observed, expected in (
+        (
+            "pc1_explained_variance_ratio",
+            observed_ratio,
+            float(WORKED_EXAMPLE["pc1_explained_variance_ratio"]),
+        ),
+        (
+            "shrinkage_intensity",
+            observed_shrinkage,
+            float(WORKED_EXAMPLE["shrinkage_intensity"]),
+        ),
+    ):
+        if not np.isclose(
+            observed,
+            expected,
+            rtol=0.0,
+            atol=WORKED_EXAMPLE_TOLERANCE,
+        ):
+            raise RuntimeError(
+                f"Worked example drift for {label}: {observed} != {expected}"
+            )
 
 
 def build_report() -> None:

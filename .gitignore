@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Temporary PDF render/inspection output.
+tmp/pdfs/

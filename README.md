@@ -51,11 +51,12 @@ aesthetic response is operationalized by the software.
 - Enforces the conventional 68-point index topology.
 - Fits a true multi-configuration GPA reference consensus.
 - Removes translation, uniform scale, and proper planar rotation.
-- Projects shape information into a 132-dimensional tangent basis.
+- Projects shape information into a deterministic 132-dimensional tangent
+  basis constructed by modified Gram-Schmidt for the fitted consensus.
 - Computes PCA scores and explained-variance ratios with a symmetric
   eigendecomposition.
-- Estimates a structured covariance matrix using diagonal-target shrinkage and
-  a small numerical ridge.
+- Estimates diagonal-target covariance shrinkage analytically and adds a small
+  numerical ridge.
 - Computes partial/full Procrustes and regularized Mahalanobis distances.
 - Draws input, consensus, descriptive residual vectors, and an optional
   proportional warp mesh on an HTML canvas.
@@ -63,7 +64,10 @@ aesthetic response is operationalized by the software.
   Delaunay-triangle warp, shown as Original, Split, or Warped, with
   independently switchable displacement arrows and triangulation mesh.
 - Displays a neutral 0–10 Geometric Displacement Index with fixed mathematical
-  endpoints and an explicit non-normative interpretation.
+  endpoints, an in-sample simulated-reference position, and an explicit
+  non-normative interpretation.
+- Returns visible warnings when an input exceeds the simulated reference range
+  or the declared small-distortion tangent-chart region.
 - Explains Sample A, Sample B, Blend, every displayed metric, and the current
   run in plain language within the interface.
 - Exports the analysis and study-context metadata as JSON.
@@ -81,7 +85,12 @@ bio-social-aesthetic-manifold/
 ├── core/analytics.py              # NumPy/SciPy statistical engine
 ├── docs/bio_social_aesthetic_manifold_apa_report.pdf # 27-page report
 ├── docs/mathematical_theory.md    # Detailed mathematical specification
+├── LICENSE                        # Project MIT license and attribution pointer
+├── LICENSES/Apache-2.0.txt        # MediaPipe source license
+├── requirements-dev.txt           # Pinned test/report authoring environment
 ├── scripts/build_apa_report.py    # Reproducible report generator
+├── tests/test_analytics.py        # Property, regression, and contract tests
+├── THIRD_PARTY_NOTICES.md         # Canonical-model provenance
 ├── index.html                     # Application entry point
 └── README.md                      # Architecture and literature guide
 ```
@@ -184,15 +193,15 @@ it from the current analytics engine, install the authoring dependencies and
 run the page-controlled builder from the repository root:
 
 ```bash
-python -m pip install numpy scipy reportlab pypdf
+python -m pip install -r requirements-dev.txt
 python scripts/build_apa_report.py
 ```
 
 The builder recalculates the worked Blend example, refuses to continue if its
 verified results drift, checks that the output contains exactly 27 pages, and
-prints the finished file's SHA-256 digest. It embeds a Times-compatible serif
-font when available and uses ReportLab's bundled portable font family as a
-fallback.
+prints the finished file's SHA-256 digest. It embeds Nimbus Roman when available
+and otherwise aliases its report font names to ReportLab's metrically compatible
+base-14 Times family.
 
 ## Input formats
 
@@ -246,9 +255,14 @@ are accepted. A single header row is allowed. Input files are limited to 1 MB.
 | 48–59 | Outer lip |
 | 60–67 | Inner lip |
 
-The names identify point ordering. The synthetic templates are analytic
-configurations created inside `analytics.py`; they are not coordinates copied
-from Dlib, a published sample, or a biometric population.
+The names identify point ordering; they do not imply native Dlib detector
+output. Synthetic Template A is a centered, unit-scaled 2D projection of the
+MediaPipe canonical face-model vertices at the same 68 adapter indices used in
+the browser. The source is pinned to MediaPipe commit
+`a908d668c730da128dfa8d9f6bd25d519d006692` and documented in
+`THIRD_PARTY_NOTICES.md`. Template B is a deliberate synthetic deformation of
+Template A. Neither template is a person, biometric population, biological
+norm, or appearance standard.
 
 For the optional photo route, `MEDIAPIPE_TO_DLIB_68` in
 `assets/js/photo-warp.mjs` is a fixed topology adapter from selected dense-mesh
@@ -309,6 +323,13 @@ z=B^\mathsf T\left[
 \right].
 \]
 
+The engine constructs \(B\) by orthogonalizing the four similarity directions
+and then scanning the 136 standard basis vectors in index order with modified
+Gram-Schmidt and one reorthogonalization pass. This fixes the chart orientation
+conditional on the fitted consensus. PCA eigenvector signs are fixed by making
+each largest-magnitude loading positive; this resolves sign ambiguity but does
+not claim whole-pipeline bitwise equality across arbitrary numerical stacks.
+
 ### 4. PCA
 
 For reference tangent covariance \(S\),
@@ -326,13 +347,29 @@ from largest to smallest, and the input score for component \(j\) is
 The synthetic reference covariance is
 
 \[
-\widehat\Sigma
-=0.80S+0.20\operatorname{diag}(S)+\varepsilon I.
+\widehat\Sigma_\lambda
+=(1-\widehat\lambda)S
++\widehat\lambda\operatorname{diag}(S)+\varepsilon I,
 \]
 
-Unlike a scalar-multiple identity model, this estimator preserves
-coordinate-specific variances and most estimated cross-landmark covariance.
-The ridge \(\varepsilon I\) guarantees stable Cholesky factorization.
+where the Schäfer-Strimmer diagonal-target intensity is estimated as
+
+\[
+\widehat\lambda
+=\min\!\left(1,
+\max\!\left(0,
+\frac{\sum_{i\ne j}\widehat{\operatorname{Var}}(s_{ij})}
+{\sum_{i\ne j}s_{ij}^{2}}
+\right)\right).
+\]
+
+The diagonal cancels from numerator and denominator because the target exactly
+reproduces it. The pooled deterministic reference currently gives
+\(\widehat\lambda=0.0320069\). Unlike a scalar-multiple identity target, this
+estimator preserves coordinate-specific variances and attenuates rather than
+erases estimated cross-landmark covariance. The ridge \(\varepsilon I\)
+guarantees stable Cholesky factorization. Set
+`COVARIANCE_SHRINKAGE_OVERRIDE` only for a declared sensitivity analysis.
 
 ### 6. Distances
 
@@ -470,6 +507,9 @@ The Python bridge returns these principal blocks:
 - `input_geometry`: raw centroid and centroid size;
 - `gpa`: convergence and ensemble-alignment diagnostics;
 - `distances`: partial/full Procrustes and regularized Mahalanobis distances;
+- `chart_diagnostics` and `warnings`: reference-range and tangent-chart checks;
+- `reference_calibration`: explicitly in-sample positions within the simulated
+  ensemble, not population inference;
 - `geometric_displacement_index`: bounded value, formula, range, and explicit
   non-normative metadata;
 - `tangent_space`: all 132 coordinates and the first ten PCA summaries;
@@ -488,6 +528,12 @@ Run Python syntax validation:
 
 ```bash
 python -m py_compile core/analytics.py
+```
+
+Run all property, regression, error-handling, and front-end contract tests:
+
+```bash
+python -m pytest tests/ -q
 ```
 
 Run JavaScript syntax validation:
@@ -560,13 +606,16 @@ when a newer commit arrives.
 
 - The synthetic ensembles cannot support empirical inference or claims about a
   real population.
-- The fixed shrinkage value is demonstrative, not cross-validated.
-- Mahalanobis distances have no chi-square calibration here.
+- The analytic shrinkage intensity is estimated from simulated data and is not
+  externally validated or cross-validated for an empirical target.
+- Mahalanobis distances have no empirical chi-square calibration here. The
+  held-out simulation test is only a numerical scale check.
 - A 2D configuration is affected by pose, perspective, acquisition, and
   landmarking error.
 - The method assumes complete homologous correspondence and no missing points.
-- Tangent projection is local; very distant configurations may require another
-  chart or an intrinsic method.
+- Tangent projection is local. The engine warns beyond its declared diagnostic
+  cutoff, but very distant configurations may require another chart or an
+  intrinsic method.
 - The photo landmark adapter is a convenience visualization without a
   reliability study, uncertainty estimate, pose correction, repeated-measures
   model, causal model, outcome model, or external validation sample.
@@ -780,6 +829,8 @@ project. Each entry includes its role in the architecture.
 
 ## License
 
-The project source is released under the MIT License declaration included in
-`core/analytics.py`. Third-party projects and publications remain under their
-respective licenses and copyrights.
+The project source is released under the root [MIT License](LICENSE).
+MediaPipe-derived canonical-model coordinates retain their Apache-2.0
+attribution; see [Third-Party Notices](THIRD_PARTY_NOTICES.md) and the included
+[Apache License 2.0](LICENSES/Apache-2.0.txt). Other third-party projects and
+publications remain under their respective licenses and copyrights.

@@ -449,6 +449,11 @@
               <h3 id="metric-reading-title">Plain-language interpretation</h3>
               <p id="metric-interpretation">Run the analysis to receive a concise explanation of the displayed distances and residuals.</p>
             </section>
+            <section id="analysis-warnings" class="analysis-warning" aria-labelledby="analysis-warning-title" aria-live="polite" hidden>
+              <p class="section-label">Chart diagnostic</p>
+              <h3 id="analysis-warning-title">Interpret with caution</h3>
+              <ul id="analysis-warning-list"></ul>
+            </section>
             <section class="result-section" aria-labelledby="pca-title">
               <div class="result-section__heading"><h3 id="pca-title">Tangent PCA</h3><span id="tangent-dimension">132 dimensions</span></div>
               <div id="pca-bars" class="pca-bars"><p class="empty-copy">Component scores will appear here.</p></div>
@@ -461,10 +466,13 @@
                 <div><dt>Iterations</dt><dd id="gpa-iterations">—</dd></div>
                 <div><dt>Reference n</dt><dd id="reference-size">—</dd></div>
                 <div><dt>Covariance condition</dt><dd id="covariance-condition">—</dd></div>
+                <div><dt>Shrinkage λ</dt><dd id="covariance-shrinkage">—</dd></div>
+                <div><dt>Tangent chart</dt><dd id="chart-status">—</dd></div>
+                <div><dt>Simulated reference position</dt><dd id="reference-position">—</dd></div>
               </dl>
             </details>
             <button id="export-button" class="button button--secondary button--full" type="button" disabled>Export analysis JSON</button>
-            <p class="results-footnote">The 0–10 index and all distances are descriptive magnitudes—not appearance scores, percentiles, probabilities, classifications, or values. Context sliders do not alter them.</p>
+            <p class="results-footnote">The 0–10 index and all distances are descriptive magnitudes—not appearance scores, probabilities, classifications, or values. Reference position, when shown, is an in-sample rank within this simulated ensemble—not a population percentile. Context sliders do not alter any result.</p>
           </aside>
         </div>
 

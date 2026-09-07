@@ -49,6 +49,15 @@ The landmarks follow the conventional Dlib 68-point indexing topology:
 These labels define coordinate correspondence only. They do not imply that a
 synthetic configuration is a biometric norm.
 
+Synthetic Template A is constructed from the MediaPipe canonical face model at
+commit `a908d668c730da128dfa8d9f6bd25d519d006692`. The browser's 68 mesh indices
+select the corresponding vertices; the construction retains horizontal and
+vertical components, reverses the vertical axis for image coordinates, centers
+the selected points, and scales them to unit centroid size. This establishes a
+source-matched synthetic seed, not an empirical mean, ideal, or validated photo
+measurement model. Provenance and Apache-2.0 terms are recorded in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
 ## 2. Translation and centroid size
 
 Let \(\mathbf 1_k\) be a length-\(k\) vector of ones and define the centering
@@ -207,6 +216,14 @@ space of \([t_x,t_y,s,q]^\mathsf T\). Thus
 B^\mathsf TB=I_{132}.
 \]
 
+The implementation fixes a reproducible orientation for this basis conditional
+on the fitted consensus. It first orthonormalizes the four similarity
+directions, then scans the 136 standard basis vectors in index order using
+modified Gram-Schmidt with one reorthogonalization pass. This removes the
+arbitrary orientation returned by a generic null-space routine. It does not
+guarantee bitwise equality for the complete SVD- and eigendecomposition-based
+pipeline across arbitrary numerical libraries.
+
 ### 5.2 Central tangent projection
 
 For aligned preshape \(Y=ZR\), define \(a=\langle
@@ -225,7 +242,11 @@ z=B^\mathsf Tv(Y)\in\mathbb R^{132}.
 
 This is a local linear approximation. The engine rejects configurations with
 near-zero \(a\), for which a tangent approximation at \(M\) would be
-inappropriate.
+inappropriate. It also returns a diagnostic warning when partial Procrustes
+distance exceeds 0.35. At that chord distance, the corresponding spherical
+geodesic is about 20 degrees and central-projection radial magnitude differs
+from geodesic magnitude by about 4%. The cutoff is a transparent visualization
+and interpretation convention, not a hypothesis-test threshold.
 
 ## 6. Tangent-space principal components
 
@@ -264,6 +285,10 @@ and the explained-variance ratio of PC \(j\) is
 \]
 
 The application reports the first ten scores and visualizes the first six.
+Because each eigenvector sign is algebraically arbitrary, the implementation
+forces the largest-magnitude loading of every component to be positive. This
+stabilizes score orientation but cannot resolve rotations within an exactly
+repeated-eigenvalue subspace.
 
 ## 7. Structured simulated covariance
 
@@ -277,25 +302,38 @@ This construction generates genuine cross-landmark covariance. It does not
 claim to reproduce covariance from any biological population.
 
 Because finite-sample covariance estimation can be unstable, the engine uses a
-fixed diagonal-target shrinkage estimator:
+diagonal-target shrinkage estimator:
 
 \[
 \widehat\Sigma_\lambda
-=(1-\lambda)S+\lambda\operatorname{diag}(S)+\varepsilon I,
+=(1-\widehat\lambda)S+\widehat\lambda\operatorname{diag}(S)+\varepsilon I.
 \]
 
-where \(\lambda=0.20\) and
+The Schäfer-Strimmer intensity for this target is
+
+\[
+\widehat\lambda
+=\min\!\left(1,\max\!\left(0,
+\frac{\sum_{i\ne j}\widehat{\operatorname{Var}}(s_{ij})}
+{\sum_{i\ne j}s_{ij}^{2}}
+\right)\right).
+\]
+
+Only off-diagonal terms remain because the target reproduces the diagonal of
+\(S\) exactly. For the deterministic pooled reference,
+\(\widehat\lambda=0.0320069\). The ridge is
 
 \[
 \varepsilon
-=10^{-6}\frac{\operatorname{tr}\left((1-\lambda)S+
-\lambda\operatorname{diag}(S)\right)}{132},
+=10^{-6}\frac{\operatorname{tr}\left((1-\widehat\lambda)S+
+\widehat\lambda\operatorname{diag}(S)\right)}{132},
 \]
 
 subject to a machine-precision lower bound. Shrinking toward
 \(\operatorname{diag}(S)\)—rather than a scalar multiple of the identity—keeps
-coordinate-specific variance while retaining \(80\%\) of the estimated
-off-diagonal structure.
+coordinate-specific variance while attenuating estimated off-diagonal
+structure by the fitted intensity. A fixed override is available only for
+declared sensitivity analysis.
 
 ## 8. Regularized Mahalanobis distance
 
@@ -313,9 +351,13 @@ distance is
 D_M=\sqrt{\max(0,D_M^2)}.
 \]
 
-Because \(\widehat\Sigma_\lambda\) is simulated and its shrinkage parameter is
-fixed, \(D_M\) has no empirical percentile or inferential calibration in this
-application.
+Because \(\widehat\Sigma_\lambda\) is simulated, \(D_M\) has no empirical
+population percentile or inferential calibration in this application. The
+engine reports an explicitly in-sample position within the finite simulated
+reference ensemble as descriptive context. That position is not a p-value,
+probability, external calibration, or population claim. A held-out simulation
+test checks only that the quadratic-distance scale has not numerically
+collapsed; it does not establish a chi-square law.
 
 ## 9. Residual shape-difference vectors
 
@@ -541,12 +583,15 @@ The engine applies the following safeguards:
 - exactly 136 finite coordinate values are required;
 - zero and near-zero centroid size are rejected;
 - reflections are excluded from Procrustes alignment;
-- the tangent basis is checked for dimension \(132\);
+- the tangent basis is checked for dimension \(132\), orthonormality, and
+  exclusion of the four similarity directions;
 - near-orthogonal shapes are rejected from the local tangent approximation;
-- covariance is symmetrized, shrunk, and ridge-regularized;
+- distant shapes receive explicit reference-range and tangent-chart warnings;
+- covariance shrinkage is estimated, clipped to \([0,1]\), symmetrized, and
+  ridge-regularized;
 - Cholesky solution replaces explicit inversion;
 - JSON serialization rejects NaN and infinity;
-- deterministic seeds make every simulated reference reproducible;
+- an explicit legacy `RandomState` pins the simulated test stream;
 - the dense-to-68 mapping is fixed and contains 68 unique indices;
 - photo shifts are capped and triangle orientation is protected by line search;
 - image pixels remain outside the Python payload and JSON export.
@@ -564,6 +609,13 @@ output. It does not quantify landmark uncertainty, correct out-of-plane pose,
 or validate texture-warp fidelity. Applying these methods to empirical data
 requires documented landmark acquisition, reliability assessment, handling of
 missingness, external validation, and ethical review appropriate to the study.
+
+The `RandomState` choice stabilizes the legacy distribution stream used by the
+regression fixture. In accordance with NumPy's NEP 19, this is not a guarantee
+that a complete numerical analysis or generated PDF is bitwise identical across
+NumPy, SciPy, operating-system, or LAPACK versions. The report builder uses a
+tight tolerance, and exact artifact reproduction requires the pinned versions
+in `requirements-dev.txt`.
 
 The complete annotated bibliography and implementation map appear in the
 [repository README](../README.md).
