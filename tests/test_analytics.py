@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.analytics import (  # noqa: E402
     AMBIENT_DIMENSION,
+    CANONICAL_TEMPLATE,
     CANONICAL_TEMPLATE_SOURCE_COMMIT,
     LANDMARK_COUNT,
     MAXIMUM_PARTIAL_PROCRUSTES,
@@ -231,13 +232,18 @@ def test_regression_template_is_face_shaped():
     reversing the vertical axis, centering, and normalizing centroid size.
     """
 
+    # Hash the checked-in source coordinates, not the normalized derivative.
+    # Re-normalization calls a BLAS-backed norm and can legitimately differ in
+    # the final bits across numerical-library builds even when the geometry is
+    # unchanged.
     digest = hashlib.sha256(
-        np.asarray(SIMULATED_TEMPLATE_A, dtype="<f8").tobytes(order="C")
+        np.asarray(CANONICAL_TEMPLATE, dtype="<f8").tobytes(order="C")
     ).hexdigest()
     assert CANONICAL_TEMPLATE_SOURCE_COMMIT == (
         "a908d668c730da128dfa8d9f6bd25d519d006692"
     )
-    assert digest == "76c44861e12c7fbe526755ea8eaaa2050403a5c444afb68442d051915bc98d0c"
+    assert digest == "bc32a46f49a41071b2d4ded4bdad26f215de4be5377f74811358978ce64861b3"
+    assert np.allclose(SIMULATED_TEMPLATE_A, CANONICAL_TEMPLATE, atol=2.0e-9)
 
     result = analyze(SIMULATED_TEMPLATE_A)
     model = _fit_reference_model("pooled")
