@@ -568,7 +568,14 @@ Serve the site and confirm that:
    preview and does not trigger native browser image dragging;
 10. malformed image or coordinate files produce a readable error;
 11. exported JSON marks the reference as simulated and context as
-   `annotation_only`.
+   `annotation_only`;
+12. landmark detection stays opt-in: no mesh is requested until the explicit
+   analysis action, and the status line reports the detector state;
+13. the adapter maps exactly 68 unique canonical mesh indices, so no Dlib
+   position is fed from a duplicated vertex; and
+14. neither the Python bridge nor the exported JSON contains image bytes or
+   pixel arrays: the only photo-derived values sent to Python are the 136
+   landmark coordinates, alongside the selected simulated-reference label.
 
 The engine has also been checked for translation, uniform-scale, and
 proper-rotation invariance to floating-point precision.
