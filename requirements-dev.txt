@@ -2,5 +2,6 @@
 numpy==2.3.5
 scipy==1.17.0
 pytest==9.1.1
+pyflakes==3.4.0
 reportlab==4.4.9
 pypdf==6.10.0

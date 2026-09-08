@@ -15,13 +15,14 @@
     <meta name="theme-color" content="#050a12">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/pyodide/v314.0.6/full/ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/ 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net/pyodide/v314.0.6/full/ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/ https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     >
     <title>Shape Manifold Laboratory</title>
     <link rel="stylesheet" href="./assets/css/main.css">
     <script
       defer
       src="https://cdn.jsdelivr.net/pyodide/v314.0.6/full/pyodide.js"
+      integrity="sha384-NV89XnNMjL1QhwMSII1A5nl9HxxqvDhq6dsIoI2bComfFnFR06or2wdEAHhXEgOI"
       crossorigin="anonymous"
     ></script>
     <script defer src="./assets/js/app.js"></script>
@@ -270,7 +271,7 @@
               <button id="analyze-photo-button" class="button button--secondary button--full" type="button" disabled>
                 Detect landmarks &amp; render warp <span aria-hidden="true">→</span>
               </button>
-              <small>Downloads a pinned MediaPipe model on first use. No blendshapes or personal attributes are requested.</small>
+              <small>Downloads and verifies a SHA-256-pinned MediaPipe model on first use. No blendshapes or personal attributes are requested.</small>
             </section>
 
             <div class="divider"><span>or use research inputs</span></div>
@@ -700,7 +701,7 @@
         <p class="section-label">Research boundary</p>
         <h2 id="scope-title">Descriptive and local by design</h2>
         <p>
-          The viewer is local. If you explicitly choose photo analysis, a pinned face-landmark model
+          The viewer is local. If you explicitly choose photo analysis, a content-verified face-landmark model
           processes one image in browser memory and supplies coordinates to the same simulated-reference pipeline.
         </p>
         <dl>

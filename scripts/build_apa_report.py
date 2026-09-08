@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import reportlab
 from pypdf import PdfReader
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -838,7 +837,8 @@ PAGES: list[dict[str, Any]] = [
                 "Input validation requires exactly 136 finite values, a 68 by 2 shape after reshaping, "
                 "and positive centroid size. Photo files and coordinate files have separate accepted "
                 "extensions and size limits. Malformed JSON, nonnumeric tokens, NaN, infinity, "
-                "near-zero geometry, invalid reference keys, and inappropriate tangent projection are "
+                "near-zero geometry, centroid-size overflow, invalid reference keys, and inappropriate "
+                "tangent projection are "
                 "returned as bounded error messages."
             ),
             bullets(
@@ -892,7 +892,7 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
                 "reference key, reference n, and deterministic seeds are returned with each result. "
-                "Seventy-five tests cover invariances, algebraic identities, the canonical template "
+                "Seventy-seven tests cover invariances, algebraic identities, the canonical template "
                 "digest, tangent-basis properties, malformed inputs, warning paths, and the browser JSON "
                 "contract. The report builder verifies its worked fixture and exact 27-page count before "
                 "printing a SHA-256 digest. requirements-dev.txt pins the authoring stack; neither seeds "

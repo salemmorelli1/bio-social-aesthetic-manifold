@@ -1072,7 +1072,7 @@ async function analyzePhotoLocally() {
   updatePhotoAnalysisAvailability();
   ui.photoAnalysisStatus.textContent = "Loading model";
   ui.photoWarpState.textContent = "Loading landmark model";
-  ui.photoWarpCaption.textContent = "Downloading the pinned face-landmark model; the selected photo remains in browser memory.";
+  ui.photoWarpCaption.textContent = "Downloading and verifying the face-landmark model; the selected photo remains in browser memory.";
 
   try {
     const module = await getPhotoWarpModule();

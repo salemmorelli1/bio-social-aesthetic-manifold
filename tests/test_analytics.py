@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import hashlib
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -378,6 +379,24 @@ def test_templates_are_distinguishable():
     preshape_a, _, _ = _to_preshape(SIMULATED_TEMPLATE_A)
     preshape_b, _, _ = _to_preshape(SIMULATED_TEMPLATE_B)
     assert np.linalg.norm(preshape_a - preshape_b) > 0.01
+
+
+def test_overflowing_coordinates_get_their_own_message():
+    """Centroid-size overflow must not be misattributed to the tangent chart."""
+
+    landmarks = demo("a") * 1.0e300
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = json.loads(run_pipeline_from_js(landmarks.ravel().tolist()))
+    assert result["error_type"] == "ValueError"
+    assert "too large" in result["error"]
+    assert caught == []
+
+
+def test_scale_invariance_holds_up_to_the_overflow_boundary():
+    baseline = analyze(demo("a"))["distances"]["partial_procrustes"]
+    scaled = analyze(demo("a") * 1.0e150)["distances"]["partial_procrustes"]
+    assert scaled == pytest.approx(baseline, abs=TOLERANCE)
 
 
 @pytest.mark.parametrize(

@@ -281,9 +281,23 @@ def _to_preshape(shape: FloatArray) -> tuple[FloatArray, FloatArray, float]:
     if not np.all(np.isfinite(array)):
         raise ValueError("Landmark coordinates must all be finite numbers.")
 
-    centroid = np.mean(array, axis=0)
-    centered = array - centroid
-    size = float(la.norm(centered, ord="fro", check_finite=False))
+    with np.errstate(over="ignore", invalid="ignore"):
+        centroid = np.mean(array, axis=0)
+        centered = array - centroid
+        size = float(la.norm(centered, ord="fro", check_finite=False))
+    if (
+        not np.all(np.isfinite(centroid))
+        or not np.all(np.isfinite(centered))
+        or not np.isfinite(size)
+    ):
+        # Squaring coordinates above roughly 1e154 can overflow double
+        # precision. Without this branch the infinite size collapses every
+        # scaled coordinate to zero and the failure is later misattributed to
+        # tangent projection.
+        raise ValueError(
+            "Coordinate magnitudes are too large to compute a centroid size in "
+            "double precision. Rescale the configuration before analysis."
+        )
     if size <= np.finfo(np.float64).eps * 100.0:
         raise ValueError("The configuration has zero or near-zero centroid size.")
     return centered / size, centroid, size

@@ -536,6 +536,12 @@ Run all property, regression, error-handling, and front-end contract tests:
 python -m pytest tests/ -q
 ```
 
+Run the same static Python name and import check used by CI:
+
+```bash
+python -m pyflakes core/analytics.py scripts/build_apa_report.py tests/test_analytics.py
+```
+
 Run JavaScript syntax validation:
 
 ```bash
@@ -576,7 +582,9 @@ proper-rotation invariance to floating-point precision.
 
 The workflow grants `contents: read`, `pages: write`, and `id-token: write` and
 uses deployment concurrency so an obsolete in-progress deployment is canceled
-when a newer commit arrives.
+when a newer commit arrives. Write-capable permissions are scoped only to the
+deployment job, every action is pinned to a reviewed full commit SHA, and
+checkout credentials are not persisted.
 
 ## Browser and privacy notes
 
@@ -584,10 +592,17 @@ when a newer commit arrives.
   required.
 - Pyodide is pinned to version 314.0.6 using the complete official jsDelivr
   path documented by the [Pyodide project](https://pyodide.org/en/stable/usage/quickstart.html).
-- MediaPipe Tasks Vision is pinned to 1.0.1 and follows the official
+  The bootstrap script is protected by a SHA-384 Subresource Integrity value;
+  its version-scoped transitive runtime and package requests still rely on the
+  reviewed CDN release path.
+- MediaPipe Tasks Vision is version-scoped to 1.0.1 and follows the official
   [Face Landmarker web guide](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/web_js).
-- The Content Security Policy limits executable resources to the repository and
-  the pinned jsDelivr host; model fetches are limited to Google's model host.
+- Google's `/float16/1/` model URL is version-addressed but not assumed to be
+  immutable. Before landmarking, the browser verifies the downloaded bytes
+  against SHA-256 `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`
+  and fails closed on a mismatch.
+- The Content Security Policy limits executable and connection sources to the
+  exact Pyodide and MediaPipe version paths and the exact model-object path.
 - Image files are decoded through a temporary `blob:` URL, remain in browser
   memory, and are released when replaced, removed, or when the page closes.
 - The preview accepts JPG, PNG, and WebP images up to 20 MB. SVG is excluded

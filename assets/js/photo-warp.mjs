@@ -16,6 +16,8 @@ export const MEDIAPIPE_WASM_ROOT =
   `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
 export const FACE_LANDMARKER_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+export const FACE_LANDMARKER_MODEL_SHA256 =
+  "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff";
 
 // A documented correspondence adapter from MediaPipe's dense mesh to the
 // canonical Dlib-style 68-point order. It is not Dlib detector output and does
@@ -55,6 +57,36 @@ export const DLIB_LANDMARK_PATHS = Object.freeze([
 
 let faceLandmarkerPromise = null;
 
+function bytesToHex(bytes) {
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function fetchVerifiedFaceLandmarkerModel() {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error(
+      "Model verification requires Web Crypto in a secure browser context. Use HTTPS or localhost."
+    );
+  }
+  const response = await fetch(FACE_LANDMARKER_MODEL_URL, {
+    mode: "cors",
+    credentials: "omit",
+    cache: "force-cache",
+    referrerPolicy: "no-referrer",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download the face-landmark model (${response.status}).`);
+  }
+  const modelBuffer = await response.arrayBuffer();
+  const digestBuffer = await globalThis.crypto.subtle.digest("SHA-256", modelBuffer);
+  const observedDigest = bytesToHex(new Uint8Array(digestBuffer));
+  if (observedDigest !== FACE_LANDMARKER_MODEL_SHA256) {
+    throw new Error(
+      "Face-landmark model integrity verification failed. The remote model bytes do not match the reviewed SHA-256."
+    );
+  }
+  return new Uint8Array(modelBuffer);
+}
+
 function finiteNumber(value, name) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -81,13 +113,16 @@ function validatePointArray(points, expectedLength, name) {
 export async function loadLocalFaceLandmarker() {
   if (!faceLandmarkerPromise) {
     faceLandmarkerPromise = (async () => {
-      const vision = await import(MEDIAPIPE_MODULE_URL);
+      const [vision, modelAssetBuffer] = await Promise.all([
+        import(MEDIAPIPE_MODULE_URL),
+        fetchVerifiedFaceLandmarkerModel(),
+      ]);
       const wasmFileset = await vision.FilesetResolver.forVisionTasks(
         MEDIAPIPE_WASM_ROOT
       );
       return vision.FaceLandmarker.createFromOptions(wasmFileset, {
         baseOptions: {
-          modelAssetPath: FACE_LANDMARKER_MODEL_URL,
+          modelAssetBuffer,
           delegate: "CPU",
         },
         runningMode: "IMAGE",
