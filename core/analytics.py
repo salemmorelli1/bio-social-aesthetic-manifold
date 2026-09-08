@@ -281,25 +281,59 @@ def _to_preshape(shape: FloatArray) -> tuple[FloatArray, FloatArray, float]:
     if not np.all(np.isfinite(array)):
         raise ValueError("Landmark coordinates must all be finite numbers.")
 
-    with np.errstate(over="ignore", invalid="ignore"):
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
         centroid = np.mean(array, axis=0)
         centered = array - centroid
         size = float(la.norm(centered, ord="fro", check_finite=False))
-    if (
+
+    # The direct norm is fastest and preserves the pinned ordinary-scale
+    # results, but squaring can overflow above roughly sqrt(float_max) or
+    # underflow below roughly sqrt(float_tiny). Recompute in scaled coordinates
+    # whenever that path is unsafe. This retains similarity invariance across
+    # the representable range instead of applying a dimensionful "near-zero"
+    # cutoff to otherwise valid configurations.
+    direct_norm_is_unsafe = (
         not np.all(np.isfinite(centroid))
         or not np.all(np.isfinite(centered))
         or not np.isfinite(size)
-    ):
-        # Squaring coordinates above roughly 1e154 can overflow double
-        # precision. Without this branch the infinite size collapses every
-        # scaled coordinate to zero and the failure is later misattributed to
-        # tangent projection.
-        raise ValueError(
-            "Coordinate magnitudes are too large to compute a centroid size in "
-            "double precision. Rescale the configuration before analysis."
-        )
-    if size <= np.finfo(np.float64).eps * 100.0:
-        raise ValueError("The configuration has zero or near-zero centroid size.")
+        or size < np.sqrt(np.finfo(np.float64).tiny)
+    )
+    if direct_norm_is_unsafe:
+        coordinate_scale = float(np.max(np.abs(array)))
+        if coordinate_scale == 0.0:
+            raise ValueError("The configuration has zero centroid size.")
+
+        with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+            scaled_array = array / coordinate_scale
+            scaled_centroid = np.mean(scaled_array, axis=0)
+            scaled_centered = scaled_array - scaled_centroid
+            centered_peak = float(np.max(np.abs(scaled_centered)))
+
+        if centered_peak == 0.0:
+            raise ValueError("The configuration has zero centroid size.")
+
+        norm_input = scaled_centered / centered_peak
+        norm_factor = float(la.norm(norm_input, ord="fro", check_finite=False))
+        with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+            centroid = scaled_centroid * coordinate_scale
+            size = coordinate_scale * (centered_peak * norm_factor)
+        preshape = norm_input / norm_factor
+
+        if (
+            not np.all(np.isfinite(centroid))
+            or not np.isfinite(size)
+            or size <= 0.0
+            or not np.all(np.isfinite(preshape))
+        ):
+            raise ValueError(
+                "Coordinate magnitudes are too large to compute a finite "
+                "centroid size in double precision. Rescale the configuration "
+                "before analysis."
+            )
+        return preshape, centroid, size
+
+    if size == 0.0:
+        raise ValueError("The configuration has zero centroid size.")
     return centered / size, centroid, size
 
 
@@ -842,7 +876,7 @@ class DescriptiveMorphometricEngine:
                 "the tangent chart (partial Procrustes distance "
                 f"{partial_procrustes:.4f} exceeds {TANGENT_CHART_LIMIT}). The "
                 "tangent coordinates, PCA scores, and Mahalanobis distance are "
-                "reported but should not be interpreted quantitatively. A "
+                "reported but should not be interpreted quantitatively. "
                 "Possible causes include reflection, landmark-order mismatch, "
                 "or geometry well outside the simulated ensemble."
             )

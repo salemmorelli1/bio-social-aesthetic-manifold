@@ -384,7 +384,11 @@ def test_templates_are_distinguishable():
 def test_overflowing_coordinates_get_their_own_message():
     """Centroid-size overflow must not be misattributed to the tangent chart."""
 
-    landmarks = demo("a") * 1.0e300
+    maximum = np.finfo(np.float64).max
+    landmarks = np.tile(
+        [[maximum, 0.0], [-maximum, 0.0]],
+        (LANDMARK_COUNT // 2, 1),
+    )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         result = json.loads(run_pipeline_from_js(landmarks.ravel().tolist()))
@@ -393,10 +397,12 @@ def test_overflowing_coordinates_get_their_own_message():
     assert caught == []
 
 
-def test_scale_invariance_holds_up_to_the_overflow_boundary():
-    baseline = analyze(demo("a"))["distances"]["partial_procrustes"]
-    scaled = analyze(demo("a") * 1.0e150)["distances"]["partial_procrustes"]
-    assert scaled == pytest.approx(baseline, abs=TOLERANCE)
+def test_scale_invariance_spans_representable_magnitudes():
+    baseline = analyze(demo("a"))["distances"]
+    for scale in (1.0e-200, 1.0e-20, 1.0e150, 1.0e300):
+        scaled = analyze(demo("a") * scale)["distances"]
+        for name, value in baseline.items():
+            assert scaled[name] == pytest.approx(value, abs=TOLERANCE)
 
 
 @pytest.mark.parametrize(
