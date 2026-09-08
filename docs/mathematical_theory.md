@@ -581,7 +581,9 @@ out-of-sample validation.
 The engine applies the following safeguards:
 
 - exactly 136 finite coordinate values are required;
-- zero and near-zero centroid size are rejected;
+- zero centroid size is rejected;
+- subnormal centroid size is analyzed but receives a visible float64 precision
+  warning;
 - reflections are excluded from Procrustes alignment;
 - the tangent basis is checked for dimension \(132\), orthonormality, and
   exclusion of the four similarity directions;

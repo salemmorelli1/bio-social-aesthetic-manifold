@@ -123,6 +123,13 @@ MAXIMUM_PARTIAL_PROCRUSTES: Final[float] = float(np.sqrt(2.0))
 # still returned, but they are flagged.
 TANGENT_CHART_LIMIT: Final[float] = 0.35
 
+# Centroid sizes below this IEEE-754 boundary are subnormal. Analysis remains
+# mathematically defined, but the input has fewer significant bits than a
+# normal float64 value. This is a representation diagnostic, not a geometric
+# rejection threshold: subnormal configurations are analyzed and visibly
+# flagged so callers can decide whether to re-export them at a larger scale.
+FLOAT64_NORMAL_FLOOR: Final[float] = float(np.finfo(np.float64).tiny)
+
 # Optional manual override for the covariance shrinkage intensity. ``None``
 # selects the analytic Schaefer-Strimmer estimate, which is what the cited
 # literature actually prescribes.
@@ -870,6 +877,16 @@ class DescriptiveMorphometricEngine:
         within_reference_range = partial_procrustes <= reference_maximum
 
         warnings: list[str] = []
+        if 0.0 < centroid_size < FLOAT64_NORMAL_FLOOR:
+            warnings.append(
+                "The configuration's centroid size is subnormal in double "
+                "precision, so its coordinates carry fewer significant digits "
+                "than normal float64 values. Analysis continues, but the "
+                "reported distances may lose accuracy. Re-export the source "
+                "coordinates at a larger numerical scale to preserve full "
+                "precision."
+            )
+
         if not within_chart:
             warnings.append(
                 "The configuration lies outside the small-distortion region of "

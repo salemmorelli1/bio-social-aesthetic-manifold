@@ -837,16 +837,17 @@ PAGES: list[dict[str, Any]] = [
                 "Input validation requires exactly 136 finite values, a 68 by 2 shape after reshaping, "
                 "and positive centroid size. Photo files and coordinate files have separate accepted "
                 "extensions and size limits. Malformed JSON, nonnumeric tokens, NaN, infinity, "
-                "near-zero geometry, centroid-size overflow, invalid reference keys, and inappropriate "
-                "tangent projection are "
-                "returned as bounded error messages."
+                "zero-size geometry, centroid-size overflow, invalid reference keys, and inappropriate "
+                "tangent projection are returned as bounded error messages. A subnormal positive "
+                "centroid size remains analyzable but receives an explicit float64 precision warning."
             ),
             bullets(
                 "GPA prohibits reflections and exposes convergence status and iteration count.",
                 "The canonical tangent basis must have exactly 132 orthonormal columns.",
                 "Covariance is shrunk, ridge-stabilized, symmetrized, and Cholesky-factorized.",
                 "Linear solves replace an explicitly constructed covariance inverse.",
-                "Reference-range and tangent-chart warnings accompany extrapolating inputs.",
+                "Float64 precision, reference-range, and tangent-chart warnings accompany inputs "
+                "that require interpretive caution.",
                 "The reported reference position is explicitly labeled in-sample and simulated.",
                 "JSON rejects nonfinite values, and fixed RandomState seeds stabilize test streams.",
                 "Photo shifts are capped and triangle orientation is protected by a scale line search.",
@@ -892,7 +893,7 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
                 "reference key, reference n, and deterministic seeds are returned with each result. "
-                "Seventy-seven tests cover invariances, algebraic identities, the canonical template "
+                "Eighty-six tests cover invariances, algebraic identities, the canonical template "
                 "digest, tangent-basis properties, malformed inputs, warning paths, and the browser JSON "
                 "contract. The report builder verifies its worked fixture and exact 27-page count before "
                 "printing a SHA-256 digest. requirements-dev.txt pins the authoring stack; neither seeds "

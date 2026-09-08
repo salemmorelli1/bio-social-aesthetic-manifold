@@ -66,8 +66,9 @@ aesthetic response is operationalized by the software.
 - Displays a neutral 0–10 Geometric Displacement Index with fixed mathematical
   endpoints, an in-sample simulated-reference position, and an explicit
   non-normative interpretation.
-- Returns visible warnings when an input exceeds the simulated reference range
-  or the declared small-distortion tangent-chart region.
+- Returns visible warnings when an input has a subnormal centroid size, exceeds
+  the simulated reference range, or leaves the declared small-distortion
+  tangent-chart region.
 - Explains Sample A, Sample B, Blend, every displayed metric, and the current
   run in plain language within the interface.
 - Exports the analysis and study-context metadata as JSON.
@@ -507,7 +508,8 @@ The Python bridge returns these principal blocks:
 - `input_geometry`: raw centroid and centroid size;
 - `gpa`: convergence and ensemble-alignment diagnostics;
 - `distances`: partial/full Procrustes and regularized Mahalanobis distances;
-- `chart_diagnostics` and `warnings`: reference-range and tangent-chart checks;
+- `chart_diagnostics` and `warnings`: floating-point precision, reference-range,
+  and tangent-chart checks;
 - `reference_calibration`: explicitly in-sample positions within the simulated
   ensemble, not population inference;
 - `geometric_displacement_index`: bounded value, formula, range, and explicit

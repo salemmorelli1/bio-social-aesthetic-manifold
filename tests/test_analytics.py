@@ -397,6 +397,55 @@ def test_overflowing_coordinates_get_their_own_message():
     assert caught == []
 
 
+def test_subnormal_centroid_size_is_flagged_not_hidden():
+    """A representational precision loss is warned about, not rejected."""
+
+    result = analyze(demo("a") * 1.0e-320)
+    assert "error" not in result
+    assert any("centroid size is subnormal" in item for item in result["warnings"])
+    assert result["chart_diagnostics"][
+        "tangent_projection_within_small_distortion_region"
+    ]
+
+    # Normal-scale geometry must not be flagged merely because one raw
+    # coordinate lies near zero. The diagnostic is based on centroid size and
+    # therefore describes the whole configuration rather than its chosen origin.
+    ordinary = demo("a").copy()
+    ordinary[0, 0] = np.nextafter(0.0, 1.0)
+    ordinary_result = analyze(ordinary)
+    assert not any("subnormal" in item for item in ordinary_result["warnings"])
+
+    # A 1e-307 configuration can contain subnormal components while retaining
+    # a normal centroid size and full-precision distance calculations.
+    assert not any(
+        "subnormal" in item for item in analyze(demo("a") * 1.0e-307)["warnings"]
+    )
+    assert analyze(demo("a") * 1.0e-300)["warnings"] == []
+
+
+@pytest.mark.parametrize(
+    "configuration",
+    [
+        np.tile([3.0, 4.0], (LANDMARK_COUNT, 1)),
+        np.tile([1.0e-300, 1.0e-300], (LANDMARK_COUNT, 1)),
+        np.tile([1.0e300, 1.0e300], (LANDMARK_COUNT, 1)),
+    ],
+)
+def test_coincident_points_are_rejected_at_any_scale(configuration):
+    """The rescaled path must still reject configurations with no extent."""
+
+    result = json.loads(run_pipeline_from_js(configuration.ravel().tolist()))
+    assert result["error_type"] == "ValueError"
+    assert "zero centroid size" in result["error"]
+
+
+@pytest.mark.parametrize("exponent", [0, 154, 300, -154, -300])
+def test_preshape_is_unit_norm_on_both_normalization_paths(exponent):
+    preshape, _, size = _to_preshape(demo("a") * (10.0**exponent))
+    assert np.linalg.norm(preshape) == pytest.approx(1.0, abs=1.0e-15)
+    assert np.isfinite(size) and size > 0.0
+
+
 def test_scale_invariance_spans_representable_magnitudes():
     baseline = analyze(demo("a"))["distances"]
     for scale in (1.0e-200, 1.0e-20, 1.0e150, 1.0e300):
