@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,11 +42,14 @@ BODY_WIDTH = RIGHT - LEFT
 FONT_DIRECTORY = Path("/usr/share/fonts")
 NIMBUS_AFM_DIRECTORY = FONT_DIRECTORY / "type1" / "urw-base35"
 NIMBUS_PFB_DIRECTORY = FONT_DIRECTORY / "X11" / "Type1"
+REPORTLAB_FONT_DIRECTORY = Path(pdfmetrics.__file__).resolve().parents[1] / "fonts"
+WINDOWS_FONT_DIRECTORY = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
 BODY_FONT = "ReportNimbusRoman"
 BODY_BOLD = "ReportNimbusRomanBold"
 BODY_ITALIC = "ReportNimbusRomanItalic"
 BODY_SIZE = 12.0
 LEADING = 24.0
+FONT_SIZE_SCALE = 1.0
 RUNNING_HEAD = "SHAPE MANIFOLD STATISTICS"
 
 INK = colors.HexColor("#171717")
@@ -58,11 +63,13 @@ GRID = colors.HexColor("#D8D8D8")
 
 
 def register_report_fonts() -> None:
-    """Embed a metrically stable Times-compatible family in the PDF."""
+    """Select an embedded, portable report-font family."""
+    global BODY_FONT, BODY_BOLD, BODY_ITALIC, FONT_SIZE_SCALE
+
     variants = (
-        (BODY_FONT, "NimbusRoman-Regular"),
-        (BODY_BOLD, "NimbusRoman-Bold"),
-        (BODY_ITALIC, "NimbusRoman-Italic"),
+        ("ReportNimbusRoman", "NimbusRoman-Regular"),
+        ("ReportNimbusRomanBold", "NimbusRoman-Bold"),
+        ("ReportNimbusRomanItalic", "NimbusRoman-Italic"),
     )
     nimbus_sources = [
         (
@@ -73,6 +80,10 @@ def register_report_fonts() -> None:
         for public_name, source_name in variants
     ]
     if all(afm.exists() and pfb.exists() for _, afm, pfb in nimbus_sources):
+        BODY_FONT, BODY_BOLD, BODY_ITALIC = tuple(
+            public_name for public_name, _ in variants
+        )
+        FONT_SIZE_SCALE = 1.0
         for public_name, afm, pfb in nimbus_sources:
             face = pdfmetrics.EmbeddedType1Face(str(afm), str(pfb))
             pdfmetrics.registerTypeFace(face)
@@ -81,20 +92,65 @@ def register_report_fonts() -> None:
             )
         return
 
-    # Fallback. The page layout is tuned against Times metrics, and Nimbus Roman
-    # is metrically compatible with Times, so the substitute must be too. The
-    # bundled Bitstream Vera family is NOT: it is a sans face roughly eight
-    # percent wider, which lengthens every wrapped line and overflows the body
-    # margin on hosts without the URW fonts. ReportLab always ships the base-14
-    # Type 1 metrics, so alias the public names onto Times instead.
-    for public_name, core_name in (
-        (BODY_FONT, "Times-Roman"),
-        (BODY_BOLD, "Times-Bold"),
-        (BODY_ITALIC, "Times-Italic"),
-    ):
-        pdfmetrics.registerFont(
-            pdfmetrics.Font(public_name, core_name, "WinAnsiEncoding")
-        )
+    # Prefer installed TrueType serif families with Times-compatible metrics.
+    # Unlike the PDF base-14 fonts, these are embedded, so rendering does not
+    # depend on a viewer's font substitution or width tables.
+    serif_candidates = (
+        (
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Italic.ttf"),
+        ),
+        (
+            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf"),
+        ),
+        (
+            WINDOWS_FONT_DIRECTORY / "times.ttf",
+            WINDOWS_FONT_DIRECTORY / "timesbd.ttf",
+            WINDOWS_FONT_DIRECTORY / "timesi.ttf",
+        ),
+        (
+            Path("/System/Library/Fonts/Supplemental/Times New Roman.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf"),
+        ),
+    )
+    fallback_names = (
+        "ReportFallbackSerif",
+        "ReportFallbackSerifBold",
+        "ReportFallbackSerifItalic",
+    )
+    for paths in serif_candidates:
+        if all(path.exists() for path in paths):
+            for public_name, path in zip(fallback_names, paths, strict=True):
+                pdfmetrics.registerFont(TTFont(public_name, str(path)))
+            BODY_FONT, BODY_BOLD, BODY_ITALIC = fallback_names
+            FONT_SIZE_SCALE = 1.0
+            return
+
+    # ReportLab bundles Bitstream Vera, so the final fallback remains embedded
+    # even on a minimal host. Vera is wider than Times; render it at 11 points
+    # (with proportional leading) to preserve the controlled 27-page layout.
+    vera_paths = (
+        REPORTLAB_FONT_DIRECTORY / "Vera.ttf",
+        REPORTLAB_FONT_DIRECTORY / "VeraBd.ttf",
+        REPORTLAB_FONT_DIRECTORY / "VeraIt.ttf",
+    )
+    if not all(path.exists() for path in vera_paths):
+        raise RuntimeError("No complete embeddable report-font family was found.")
+    vera_names = ("ReportVera", "ReportVeraBold", "ReportVeraItalic")
+    for public_name, path in zip(vera_names, vera_paths, strict=True):
+        pdfmetrics.registerFont(TTFont(public_name, str(path)))
+    BODY_FONT, BODY_BOLD, BODY_ITALIC = vera_names
+    FONT_SIZE_SCALE = 11.0 / 12.0
+
+
+def font_size(points: float) -> float:
+    """Return a point size adjusted for the selected fallback metrics."""
+
+    return points * FONT_SIZE_SCALE
 
 
 def paragraph(text: str) -> dict[str, Any]:
@@ -365,8 +421,9 @@ PAGES: list[dict[str, Any]] = [
             equation("Z = Xc / c(X),     ||Z||_F = 1"),
             paragraph(
                 "Dividing by centroid size produces a unit preshape Z and removes one uniform-scale "
-                "degree of freedom. A configuration with zero or numerically negligible centroid "
-                "size is rejected because normalization would be undefined. Translation and scale "
+                "degree of freedom. A configuration with zero centroid size is rejected because "
+                "normalization would be undefined; a positive subnormal size remains analyzable but "
+                "receives an explicit float64 precision warning. Translation and scale "
                 "invariance are tested by applying arbitrary shifts and positive multipliers to an "
                 "input and confirming that its post-alignment shape distances remain equal within "
                 "floating-point tolerance (Dryden & Mardia, 2016)."
@@ -883,12 +940,13 @@ PAGES: list[dict[str, Any]] = [
             ),
             paragraph(
                 "Schema tests verify 68 residual vectors, 132 tangent coordinates, 10 returned PCA "
-                "summaries, finite JSON, and explicit simulated-reference metadata. Negative tests "
-                "cover wrong row counts, all-equal coordinates, nonfinite entries, reflection, invalid "
-                "reference names, and malformed browser files. Interface tests verify direct panning "
-                "from image pixels, fit/reset behavior, opt-in landmark status, 68 unique mapped mesh "
-                "indices, triangulation, Original/Split/Warped redraws, the exact index formula, and "
-                "the absence of image pixels from the Python and export payloads."
+                "summaries, finite JSON, and explicit simulated-reference metadata. Negative Python "
+                "tests cover wrong coordinate counts, all-equal configurations, nonfinite entries, "
+                "reflection warnings, invalid reference names, and malformed JSON. The README's manual "
+                "interface checklist covers direct panning from image pixels, fit/reset behavior, "
+                "opt-in landmark status, 68 unique mapped mesh indices, triangulation, "
+                "Original/Split/Warped redraws, the exact index formula, and the absence of image "
+                "pixels from the Python and export payloads."
             ),
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
@@ -1097,7 +1155,7 @@ def wrap_lines(text: str, font: str, size: float, width: float) -> list[str]:
 
 def draw_header(pdf: canvas.Canvas, page_number: int) -> None:
     pdf.setFillColor(MUTED)
-    pdf.setFont(BODY_FONT, 9)
+    pdf.setFont(BODY_FONT, font_size(9))
     pdf.drawString(LEFT, PAGE_HEIGHT - 44, RUNNING_HEAD)
     pdf.drawRightString(RIGHT, PAGE_HEIGHT - 44, str(page_number))
     pdf.setStrokeColor(colors.HexColor("#B7B7B7"))
@@ -1107,7 +1165,7 @@ def draw_header(pdf: canvas.Canvas, page_number: int) -> None:
 
 def draw_footer(pdf: canvas.Canvas) -> None:
     pdf.setFillColor(colors.HexColor("#777777"))
-    pdf.setFont(BODY_ITALIC, 8)
+    pdf.setFont(BODY_ITALIC, font_size(8))
     pdf.drawCentredString(
         PAGE_WIDTH / 2,
         38,
@@ -1118,7 +1176,7 @@ def draw_footer(pdf: canvas.Canvas) -> None:
 def draw_title_page(pdf: canvas.Canvas) -> None:
     draw_header(pdf, 1)
     pdf.setFillColor(INK)
-    pdf.setFont(BODY_BOLD, 17)
+    pdf.setFont(BODY_BOLD, font_size(17))
     title_lines = [
         "Descriptive Geometric Morphometrics in a Browser:",
         "Statistical Architecture, Synthetic Demonstration,",
@@ -1129,7 +1187,7 @@ def draw_title_page(pdf: canvas.Canvas) -> None:
         pdf.drawCentredString(PAGE_WIDTH / 2, y, line)
         y -= 26
     y -= 26
-    pdf.setFont(BODY_FONT, BODY_SIZE)
+    pdf.setFont(BODY_FONT, font_size(BODY_SIZE))
     for line in [
         "Salem Morelli",
         "Bio-Social-Aesthetic-Manifold Project",
@@ -1139,7 +1197,7 @@ def draw_title_page(pdf: canvas.Canvas) -> None:
         pdf.drawCentredString(PAGE_WIDTH / 2, y, line)
         y -= 24
     y -= 42
-    pdf.setFont(BODY_ITALIC, 11)
+    pdf.setFont(BODY_ITALIC, font_size(11))
     pdf.setFillColor(MUTED)
     pdf.drawCentredString(
         PAGE_WIDTH / 2,
@@ -1156,10 +1214,13 @@ def draw_paragraph(
     y: float,
     *,
     first_indent: float = 36.0,
-    font: str = BODY_FONT,
-    size: float = BODY_SIZE,
-    leading: float = LEADING,
+    font: str | None = None,
+    size: float | None = None,
+    leading: float | None = None,
 ) -> float:
+    font = BODY_FONT if font is None else font
+    size = font_size(BODY_SIZE if size is None else size)
+    leading = (LEADING if leading is None else leading) * FONT_SIZE_SCALE
     words = text.split()
     if not words:
         return y
@@ -1183,9 +1244,9 @@ def draw_paragraph(
 
 def draw_heading(pdf: canvas.Canvas, text: str, y: float) -> float:
     pdf.setFillColor(INK)
-    pdf.setFont(BODY_BOLD, BODY_SIZE)
+    pdf.setFont(BODY_BOLD, font_size(BODY_SIZE))
     pdf.drawString(LEFT, y, text)
-    return y - LEADING
+    return y - LEADING * FONT_SIZE_SCALE
 
 
 def draw_equation(pdf: canvas.Canvas, text: str, y: float) -> float:
@@ -1193,37 +1254,40 @@ def draw_equation(pdf: canvas.Canvas, text: str, y: float) -> float:
     pdf.setFillColor(PALE_CYAN)
     pdf.roundRect(LEFT, y - box_height + 8, BODY_WIDTH, box_height, 6, fill=1, stroke=0)
     pdf.setFillColor(colors.HexColor("#153E46"))
-    pdf.setFont(BODY_ITALIC, 11.5)
+    equation_size = font_size(11.5)
+    pdf.setFont(BODY_ITALIC, equation_size)
     line = text
-    if stringWidth(line, BODY_ITALIC, 11.5) > BODY_WIDTH - 28:
-        line = wrap_lines(line, BODY_ITALIC, 11.5, BODY_WIDTH - 28)[0]
+    if stringWidth(line, BODY_ITALIC, equation_size) > BODY_WIDTH - 28:
+        line = wrap_lines(line, BODY_ITALIC, equation_size, BODY_WIDTH - 28)[0]
     pdf.drawCentredString(PAGE_WIDTH / 2, y - 16, line)
     return y - box_height - 4
 
 
 def draw_bullets(pdf: canvas.Canvas, items: list[str], y: float) -> float:
-    pdf.setFont(BODY_FONT, 11)
+    bullet_size = font_size(11)
+    pdf.setFont(BODY_FONT, bullet_size)
     for item in items:
-        lines = wrap_lines(item, BODY_FONT, 11, BODY_WIDTH - 28)
+        lines = wrap_lines(item, BODY_FONT, bullet_size, BODY_WIDTH - 28)
         pdf.setFillColor(CYAN)
         pdf.circle(LEFT + 4, y + 3, 2, fill=1, stroke=0)
         pdf.setFillColor(INK)
         for line in lines:
             pdf.drawString(LEFT + 18, y, line)
-            y -= 19
-        y -= 2
+            y -= 19 * FONT_SIZE_SCALE
+        y -= 2 * FONT_SIZE_SCALE
     return y
 
 
 def draw_reference(pdf: canvas.Canvas, text: str, y: float) -> float:
     first_width = BODY_WIDTH
-    lines = wrap_lines(text, BODY_FONT, 11, first_width)
+    reference_size = font_size(11)
+    lines = wrap_lines(text, BODY_FONT, reference_size, first_width)
     pdf.setFillColor(INK)
-    pdf.setFont(BODY_FONT, 11)
+    pdf.setFont(BODY_FONT, reference_size)
     for index, line in enumerate(lines):
         pdf.drawString(LEFT + (0 if index == 0 else 36), y, line)
-        y -= 19
-    return y - 6
+        y -= 19 * FONT_SIZE_SCALE
+    return y - 6 * FONT_SIZE_SCALE
 
 
 def draw_table(pdf: canvas.Canvas, block: dict[str, Any], y: float) -> float:
@@ -1237,12 +1301,12 @@ def draw_table(pdf: canvas.Canvas, block: dict[str, Any], y: float) -> float:
     pdf.rect(x0, y - row_height, total_width, row_height, fill=1, stroke=0)
     x = x0
     pdf.setFillColor(colors.white)
-    pdf.setFont(BODY_BOLD, 9)
+    pdf.setFont(BODY_BOLD, font_size(9))
     for label, width in zip(headers, widths, strict=True):
         pdf.drawCentredString(x + width / 2, y - 17, label)
         x += width
     y -= row_height
-    pdf.setFont(BODY_FONT, 9.5)
+    pdf.setFont(BODY_FONT, font_size(9.5))
     for row_index, row in enumerate(rows):
         pdf.setFillColor(PALE_CYAN if row_index % 2 == 0 else colors.white)
         pdf.rect(x0, y - row_height, total_width, row_height, fill=1, stroke=0)
@@ -1255,7 +1319,7 @@ def draw_table(pdf: canvas.Canvas, block: dict[str, Any], y: float) -> float:
     pdf.setStrokeColor(GRID)
     pdf.rect(x0, y, total_width, row_height * (len(rows) + 1), fill=0, stroke=1)
     pdf.setFillColor(MUTED)
-    pdf.setFont(BODY_ITALIC, 9)
+    pdf.setFont(BODY_ITALIC, font_size(9))
     pdf.drawString(LEFT, y - 16, "Note. All reference configurations are simulated.")
     return y - 30
 
@@ -1332,12 +1396,12 @@ def draw_pipeline_figure(pdf: canvas.Canvas, y: float, height: float) -> None:
         pdf.setStrokeColor(CYAN if index % 2 == 0 else VIOLET)
         pdf.roundRect(x, base_y, box_width, box_height, 5, fill=1, stroke=1)
         pdf.setFillColor(MUTED)
-        pdf.setFont(BODY_BOLD, 8)
+        pdf.setFont(BODY_BOLD, font_size(8))
         pdf.drawString(x + 7, base_y + 53, number)
         pdf.setFillColor(INK)
-        pdf.setFont(BODY_BOLD, 9.5)
+        pdf.setFont(BODY_BOLD, font_size(9.5))
         pdf.drawCentredString(x + box_width / 2, base_y + 35, title)
-        pdf.setFont(BODY_FONT, 7.5)
+        pdf.setFont(BODY_FONT, font_size(7.5))
         pdf.drawCentredString(x + box_width / 2, base_y + 18, detail)
 
 
@@ -1347,7 +1411,7 @@ def draw_landmark_figure(pdf: canvas.Canvas, y: float, height: float) -> None:
     bottom = y - height + 8
     transform = point_transform(SIMULATED_TEMPLATE_A, x, bottom, width, height - 18)
     draw_configuration(pdf, SIMULATED_TEMPLATE_A, transform, CYAN, width=1.1)
-    pdf.setFont(BODY_FONT, 8)
+    pdf.setFont(BODY_FONT, font_size(8))
     pdf.setFillColor(MUTED)
     labels = [(0, "0"), (8, "8"), (16, "16"), (27, "27"), (30, "30"),
               (36, "36"), (42, "42"), (48, "48"), (60, "60")]
@@ -1378,7 +1442,7 @@ def draw_covariance_figure(pdf: canvas.Canvas, y: float, height: float) -> None:
     pdf.setStrokeColor(GRID)
     pdf.rect(x0, bottom, total, total, fill=0, stroke=1)
     pdf.setFillColor(MUTED)
-    pdf.setFont(BODY_ITALIC, 8)
+    pdf.setFont(BODY_ITALIC, font_size(8))
     pdf.drawCentredString(
         PAGE_WIDTH / 2,
         bottom - 13,
@@ -1403,7 +1467,7 @@ def draw_warp_figure(pdf: canvas.Canvas, y: float, height: float) -> None:
     draw_configuration(pdf, warp_points, transform, VIOLET, width=1.5, dots=False)
     draw_configuration(pdf, reference_points, transform, CYAN, width=0.9, dots=False)
     draw_configuration(pdf, input_points, transform, INK, width=1.0)
-    pdf.setFont(BODY_FONT, 8)
+    pdf.setFont(BODY_FONT, font_size(8))
     legend_y = y - height + 3
     for index, (label, color) in enumerate(
         [("Input", INK), ("Consensus", CYAN), ("3x warp", VIOLET)]
@@ -1428,8 +1492,9 @@ def draw_content_page(pdf: canvas.Canvas, page: dict[str, Any]) -> None:
     number = int(page["number"])
     draw_header(pdf, number)
     pdf.setFillColor(INK)
-    pdf.setFont(BODY_BOLD, 14)
-    title_lines = wrap_lines(page["title"], BODY_BOLD, 14, BODY_WIDTH)
+    title_size = font_size(14)
+    pdf.setFont(BODY_BOLD, title_size)
+    title_lines = wrap_lines(page["title"], BODY_BOLD, title_size, BODY_WIDTH)
     y = PAGE_HEIGHT - 86
     for line in title_lines:
         pdf.drawCentredString(PAGE_WIDTH / 2, y, line)
@@ -1501,6 +1566,11 @@ def verify_worked_example() -> None:
             raise RuntimeError("Worked example engine version drifted.")
         if result["gpa"]["iterations"] != WORKED_EXAMPLE["gpa_iterations"]:
             raise RuntimeError("Worked example GPA iteration count drifted.")
+        if (
+            result["reference"]["sample_size"]
+            != WORKED_EXAMPLE["reference_sample_size"]
+        ):
+            raise RuntimeError("Worked example reference sample size drifted.")
 
         for field, path in mappings.items():
             value = result[path[0]][path[1]]
@@ -1519,7 +1589,7 @@ def verify_worked_example() -> None:
 
         if result["warnings"]:
             raise RuntimeError(
-                f"The {input_key} example raised chart warnings: "
+                f"The {input_key} example raised analysis warnings: "
                 f"{result['warnings']}"
             )
 
