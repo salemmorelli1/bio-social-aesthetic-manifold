@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -39,17 +38,15 @@ PAGE_WIDTH, PAGE_HEIGHT = letter
 LEFT = 72.0
 RIGHT = PAGE_WIDTH - 72.0
 BODY_WIDTH = RIGHT - LEFT
-FONT_DIRECTORY = Path("/usr/share/fonts")
-NIMBUS_AFM_DIRECTORY = FONT_DIRECTORY / "type1" / "urw-base35"
-NIMBUS_PFB_DIRECTORY = FONT_DIRECTORY / "X11" / "Type1"
 REPORTLAB_FONT_DIRECTORY = Path(pdfmetrics.__file__).resolve().parents[1] / "fonts"
-WINDOWS_FONT_DIRECTORY = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
-BODY_FONT = "ReportNimbusRoman"
-BODY_BOLD = "ReportNimbusRomanBold"
-BODY_ITALIC = "ReportNimbusRomanItalic"
+BODY_FONT = "ReportVera"
+BODY_BOLD = "ReportVeraBold"
+BODY_ITALIC = "ReportVeraItalic"
 BODY_SIZE = 12.0
 LEADING = 24.0
-FONT_SIZE_SCALE = 1.0
+# Bitstream Vera is wider than Times-compatible faces. The fixed scale keeps
+# the manually controlled 27-page layout stable on every supported host.
+FONT_SIZE_SCALE = 11.0 / 12.0
 RUNNING_HEAD = "SHAPE MANIFOLD STATISTICS"
 
 INK = colors.HexColor("#171717")
@@ -63,76 +60,14 @@ GRID = colors.HexColor("#D8D8D8")
 
 
 def register_report_fonts() -> None:
-    """Select an embedded, portable report-font family."""
-    global BODY_FONT, BODY_BOLD, BODY_ITALIC, FONT_SIZE_SCALE
+    """Register one dependency-pinned font family on every operating system.
 
-    variants = (
-        ("ReportNimbusRoman", "NimbusRoman-Regular"),
-        ("ReportNimbusRomanBold", "NimbusRoman-Bold"),
-        ("ReportNimbusRomanItalic", "NimbusRoman-Italic"),
-    )
-    nimbus_sources = [
-        (
-            public_name,
-            NIMBUS_AFM_DIRECTORY / f"{source_name}.afm",
-            NIMBUS_PFB_DIRECTORY / f"{source_name}.pfb",
-        )
-        for public_name, source_name in variants
-    ]
-    if all(afm.exists() and pfb.exists() for _, afm, pfb in nimbus_sources):
-        BODY_FONT, BODY_BOLD, BODY_ITALIC = tuple(
-            public_name for public_name, _ in variants
-        )
-        FONT_SIZE_SCALE = 1.0
-        for public_name, afm, pfb in nimbus_sources:
-            face = pdfmetrics.EmbeddedType1Face(str(afm), str(pfb))
-            pdfmetrics.registerTypeFace(face)
-            pdfmetrics.registerFont(
-                pdfmetrics.Font(public_name, face.name, "WinAnsiEncoding")
-            )
-        return
+    Selecting a host font made the tracked PDF differ between Linux, macOS,
+    and Windows even with identical Python dependencies. ReportLab bundles
+    Bitstream Vera, so using those exact files makes the authored artifact
+    independent of the machine's font inventory.
+    """
 
-    # Prefer installed TrueType serif families with Times-compatible metrics.
-    # Unlike the PDF base-14 fonts, these are embedded, so rendering does not
-    # depend on a viewer's font substitution or width tables.
-    serif_candidates = (
-        (
-            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf"),
-            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf"),
-            Path("/usr/share/fonts/truetype/liberation2/LiberationSerif-Italic.ttf"),
-        ),
-        (
-            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"),
-            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"),
-            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf"),
-        ),
-        (
-            WINDOWS_FONT_DIRECTORY / "times.ttf",
-            WINDOWS_FONT_DIRECTORY / "timesbd.ttf",
-            WINDOWS_FONT_DIRECTORY / "timesi.ttf",
-        ),
-        (
-            Path("/System/Library/Fonts/Supplemental/Times New Roman.ttf"),
-            Path("/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf"),
-            Path("/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf"),
-        ),
-    )
-    fallback_names = (
-        "ReportFallbackSerif",
-        "ReportFallbackSerifBold",
-        "ReportFallbackSerifItalic",
-    )
-    for paths in serif_candidates:
-        if all(path.exists() for path in paths):
-            for public_name, path in zip(fallback_names, paths, strict=True):
-                pdfmetrics.registerFont(TTFont(public_name, str(path)))
-            BODY_FONT, BODY_BOLD, BODY_ITALIC = fallback_names
-            FONT_SIZE_SCALE = 1.0
-            return
-
-    # ReportLab bundles Bitstream Vera, so the final fallback remains embedded
-    # even on a minimal host. Vera is wider than Times; render it at 11 points
-    # (with proportional leading) to preserve the controlled 27-page layout.
     vera_paths = (
         REPORTLAB_FONT_DIRECTORY / "Vera.ttf",
         REPORTLAB_FONT_DIRECTORY / "VeraBd.ttf",
@@ -140,11 +75,11 @@ def register_report_fonts() -> None:
     )
     if not all(path.exists() for path in vera_paths):
         raise RuntimeError("No complete embeddable report-font family was found.")
-    vera_names = ("ReportVera", "ReportVeraBold", "ReportVeraItalic")
+    vera_names = (BODY_FONT, BODY_BOLD, BODY_ITALIC)
+    registered = set(pdfmetrics.getRegisteredFontNames())
     for public_name, path in zip(vera_names, vera_paths, strict=True):
-        pdfmetrics.registerFont(TTFont(public_name, str(path)))
-    BODY_FONT, BODY_BOLD, BODY_ITALIC = vera_names
-    FONT_SIZE_SCALE = 11.0 / 12.0
+        if public_name not in registered:
+            pdfmetrics.registerFont(TTFont(public_name, str(path)))
 
 
 def font_size(points: float) -> float:
@@ -1632,27 +1567,44 @@ def build_report() -> None:
     register_report_fonts()
     verify_worked_example()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    pdf = canvas.Canvas(str(OUTPUT), pagesize=letter, pageCompression=1)
-    pdf.setTitle(
-        "Descriptive Geometric Morphometrics in a Browser: Technical Report"
-    )
-    pdf.setAuthor("Salem Morelli")
-    pdf.setSubject(
-        "Generalized Procrustes Analysis, tangent PCA, covariance regularization, "
-        "Mahalanobis distance, local photo warping, and reproducible browser computing"
-    )
-    pdf.setKeywords(
-        "geometric morphometrics, GPA, tangent space, PCA, Mahalanobis, photo warp, WebAssembly"
-    )
+    temporary_output = OUTPUT.with_suffix(f"{OUTPUT.suffix}.tmp")
+    temporary_output.unlink(missing_ok=True)
+    try:
+        pdf = canvas.Canvas(
+            str(temporary_output),
+            pagesize=letter,
+            pageCompression=1,
+            invariant=1,
+            initialFontName=BODY_FONT,
+            initialFontSize=font_size(BODY_SIZE),
+            initialLeading=font_size(LEADING),
+        )
+        pdf.setTitle(
+            "Descriptive Geometric Morphometrics in a Browser: Technical Report"
+        )
+        pdf.setAuthor("Salem Morelli")
+        pdf.setCreator("bio-social-aesthetic-manifold report builder")
+        pdf.setSubject(
+            "Generalized Procrustes Analysis, tangent PCA, covariance regularization, "
+            "Mahalanobis distance, local photo warping, and reproducible browser computing"
+        )
+        pdf.setKeywords(
+            "geometric morphometrics, GPA, tangent space, PCA, Mahalanobis, photo warp, WebAssembly"
+        )
 
-    draw_title_page(pdf)
-    for page in PAGES:
-        draw_content_page(pdf, page)
-    pdf.save()
+        draw_title_page(pdf)
+        for page in PAGES:
+            draw_content_page(pdf, page)
+        pdf.save()
 
-    reader = PdfReader(str(OUTPUT))
-    if len(reader.pages) != 27:
-        raise RuntimeError(f"Expected 27 pages; generated {len(reader.pages)}.")
+        reader = PdfReader(str(temporary_output))
+        if len(reader.pages) != 27:
+            raise RuntimeError(f"Expected 27 pages; generated {len(reader.pages)}.")
+        temporary_output.replace(OUTPUT)
+    except Exception:
+        temporary_output.unlink(missing_ok=True)
+        raise
+
     digest = hashlib.sha256(OUTPUT.read_bytes()).hexdigest()
     print(f"Created {OUTPUT}")
     print(f"Pages: {len(reader.pages)}")

@@ -3,12 +3,14 @@ name: Deploy Shape Manifold Application to GitHub Pages
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: "pages"
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -32,20 +34,33 @@ jobs:
       - name: Install validation dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
+      - name: Validate installed dependencies
+        run: python -m pip check
+
       - name: Run analytics tests
         run: python -m pytest tests/ -q
 
       - name: Check Python imports and names
-        run: python -m pyflakes core/analytics.py scripts/build_apa_report.py tests/test_analytics.py
+        run: python -m pyflakes core scripts tests
 
-      - name: Check JavaScript syntax
-        run: node --check assets/js/app.js && node --check assets/js/photo-warp.mjs
+      - name: Compile Python sources
+        run: python -m compileall -q core scripts tests
+
+      - name: Check and test JavaScript
+        run: |
+          node --check assets/js/app.js
+          node --check assets/js/photo-warp.mjs
+          node --test tests/test_photo_warp.mjs
 
       - name: Rebuild and validate the 27-page report
-        run: python scripts/build_apa_report.py
+        run: |
+          python scripts/build_apa_report.py
+          git diff --check
+          git diff --exit-code -- docs/bio_social_aesthetic_manifold_apa_report.pdf
 
   deploy:
     needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: read
       pages: write
