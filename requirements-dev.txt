@@ -1,5 +1,11 @@
 # Versions used to validate the deterministic report fixture and test suite.
+charset-normalizer==3.5.1
+iniconfig==2.3.0
 numpy==2.3.5
+packaging==26.3
+pillow==12.3.0
+pluggy==1.6.0
+pygments==2.21.0
 scipy==1.17.0
 pytest==9.1.1
 pyflakes==3.4.0

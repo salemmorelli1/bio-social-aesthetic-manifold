@@ -78,7 +78,7 @@ aesthetic response is operationalized by the software.
 
 ```text
 bio-social-aesthetic-manifold/
-├── .github/workflows/deploy.yml   # GitHub Pages deployment
+├── .github/workflows/deploy.yml   # PR validation and GitHub Pages deployment
 ├── assets/
 │   ├── css/main.css               # Responsive scientific interface
 │   ├── js/app.js                  # Pyodide bridge and interface controller
@@ -91,6 +91,8 @@ bio-social-aesthetic-manifold/
 ├── requirements-dev.txt           # Pinned test/report authoring environment
 ├── scripts/build_apa_report.py    # Reproducible report generator
 ├── tests/test_analytics.py        # Property, regression, and contract tests
+├── tests/test_photo_warp.mjs      # Pure JavaScript geometry contracts
+├── tests/test_report_reproducibility.py # Byte-for-byte PDF regression
 ├── THIRD_PARTY_NOTICES.md         # Canonical-model provenance
 ├── index.html                     # Application entry point
 └── README.md                      # Architecture and literature guide
@@ -200,9 +202,10 @@ python scripts/build_apa_report.py
 
 The builder recalculates the worked Blend example, refuses to continue if its
 verified results drift, checks that the output contains exactly 27 pages, and
-prints the finished file's SHA-256 digest. It embeds Nimbus Roman when available,
-otherwise embeds an installed Times-compatible serif family, and uses
-ReportLab's bundled Bitstream Vera at a layout-safe size on a minimal host.
+prints the finished file's SHA-256 digest. It always embeds ReportLab's pinned
+Bitstream Vera files and suppresses volatile PDF timestamps, so identical
+sources and locked dependencies produce the same bytes on Linux, macOS, and
+Windows. The test suite compares two clean builds with the committed artifact.
 
 ## Input formats
 
@@ -538,10 +541,17 @@ Run all property, regression, error-handling, and front-end contract tests:
 python -m pytest tests/ -q
 ```
 
+Validate the installed dependency graph and compile every Python source:
+
+```bash
+python -m pip check
+python -m compileall -q core scripts tests
+```
+
 Run the same static Python name and import check used by CI:
 
 ```bash
-python -m pyflakes core/analytics.py scripts/build_apa_report.py tests/test_analytics.py
+python -m pyflakes core scripts tests
 ```
 
 Run JavaScript syntax validation:
@@ -549,6 +559,7 @@ Run JavaScript syntax validation:
 ```bash
 node --check assets/js/app.js
 node --check assets/js/photo-warp.mjs
+node --test tests/test_photo_warp.mjs
 ```
 
 Serve the site and confirm that:
