@@ -4425,3 +4425,145 @@ main {
     flex-direction: column;
   }
 }
+
+/* Frontal assessment is a separate measurement surface, not the synthetic GPA score. */
+.tab-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.assessment-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.4rem;
+  margin-bottom: 1rem;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  border-color: rgba(85, 228, 243, 0.22);
+  background: linear-gradient(120deg, rgba(85, 228, 243, 0.1), var(--surface) 52%);
+}
+
+.assessment-summary h2,
+.assessment-section h2 {
+  margin: 0.2rem 0 0.5rem;
+}
+
+.assessment-summary p:last-child,
+.assessment-next p,
+.assessment-caution {
+  max-width: 57rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.assessment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.assessment-section {
+  min-width: 0;
+  padding: clamp(1.2rem, 2vw, 1.8rem);
+}
+
+.assessment-section .surface-head {
+  gap: 0.65rem;
+}
+
+.assessment-metrics {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+}
+
+.assessment-metric {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 1rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgba(5, 13, 22, 0.4);
+}
+
+.assessment-metric h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 680;
+}
+
+.assessment-metric strong {
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.assessment-metric p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.assessment-limits {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+}
+
+.assessment-caution {
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+
+.assessment-next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.assessment-next .button {
+  margin-top: 0.4rem;
+}
+
+.assessment-next a:not(.button) {
+  color: var(--cyan);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 52rem) {
+  .assessment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-summary {
+    flex-direction: column;
+  }
+
+  .view-tab {
+    padding-right: 0.15rem;
+    padding-left: 0.15rem;
+  }
+
+  .view-tab .nav-label {
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .view-tab .nav-label {
+    font-size: 0.6rem;
+  }
+
+  .assessment-metric {
+    padding: 0.85rem;
+  }
+}

@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="Shape Lab">
     <meta
       name="description"
-      content="A local-first geometric morphometrics laboratory with an opt-in photo texture warp, GPA, tangent-space PCA, and regularized Mahalanobis distance."
+      content="A local-first facial measurement report and geometric morphometrics laboratory using opt-in 68-point landmarks. Frontal ratios are descriptive, never beauty scores."
     >
     <meta name="theme-color" content="#050a12">
     <meta
@@ -74,6 +74,19 @@
           <span class="nav-label">Photo preview</span>
         </button>
         <button
+          id="tab-assessment"
+          class="view-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="assessment-view"
+          tabindex="-1"
+          data-view="assessment"
+        >
+          <span class="nav-icon" aria-hidden="true">◫</span>
+          <span class="nav-label">Assessment</span>
+        </button>
+        <button
           id="tab-lab"
           class="view-tab"
           type="button"
@@ -117,7 +130,8 @@
             <p>
               Add a JPG, PNG, or WebP image to preview it at full resolution.
               Zoom, rotate, pan, replace, or remove it without sending the file anywhere. If you
-              choose local analysis in the Shape Laboratory, a one-face landmark mesh can drive a geometric warp.
+              choose local analysis in the Shape Laboratory, a one-face landmark mesh can drive
+              a frontal measurement report and a geometric warp.
             </p>
           </div>
           <div class="privacy-badge">
@@ -197,7 +211,7 @@
               <ol class="step-list">
                 <li class="is-current">
                   <span>1</span>
-                  <div><strong>Preview the image</strong><p>Confirm orientation and image quality locally.</p></div>
+                  <div><strong>Preview a front view</strong><p>Prefer eye-level, even lighting, a neutral expression, and some camera distance; the app cannot verify these conditions.</p></div>
                 </li>
                 <li>
                   <span>2</span>
@@ -205,7 +219,7 @@
                 </li>
                 <li>
                   <span>3</span>
-                  <div><strong>Open the shape lab</strong><p>Compare geometry and optionally render the detected photo warp.</p></div>
+                  <div><strong>Review the assessment</strong><p>Read observed frontal measures, then inspect geometry and the optional warp.</p></div>
                 </li>
               </ol>
               <button id="open-lab" class="button button--secondary button--full" type="button">
@@ -229,6 +243,72 @@
       </section>
 
       <section
+        id="assessment-view"
+        class="tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-assessment"
+        data-panel="assessment"
+        hidden
+      >
+        <div class="page-intro page-intro--compact">
+          <div>
+            <p class="eyebrow">Frontal landmark assessment</p>
+            <h1>Measure features. <em>Explain the limits.</em></h1>
+            <p>
+              A report-style view of eye spacing, visible facial proportions, and bilateral
+              landmark differences. These topics occur in modern facial-aesthetics analysis,
+              but this 2D demonstration has no fitted beauty model or universal ideal ratios.
+            </p>
+          </div>
+          <div class="lab-readiness"><small>Input provenance</small><strong id="assessment-provenance">Waiting for runtime</strong></div>
+        </div>
+
+        <section class="surface assessment-summary" aria-labelledby="assessment-summary-title">
+          <div>
+            <p class="section-label">Current assessment</p>
+            <h2 id="assessment-summary-title">What this view can measure</h2>
+            <p id="assessment-intro">The local runtime will calculate illustrative measurements for Synthetic Sample A. Load a photo and explicitly detect its landmarks in the Shape Laboratory to measure a photo instead.</p>
+          </div>
+          <span id="assessment-status" class="state-label">Not run</span>
+        </section>
+
+        <div class="assessment-grid">
+          <section class="surface assessment-section" aria-labelledby="assessment-proportions-title">
+            <div class="surface-head">
+              <div><p class="section-label">01 / Front view</p><h2 id="assessment-proportions-title">Observed proportions</h2></div>
+              <span class="state-label">Image-space ratios</span>
+            </div>
+            <div id="assessment-proportions" class="assessment-metrics"><p class="empty-copy">Measurements will appear after analysis.</p></div>
+          </section>
+          <section class="surface assessment-section" aria-labelledby="assessment-balance-title">
+            <div class="surface-head">
+              <div><p class="section-label">02 / Paired landmarks</p><h2 id="assessment-balance-title">Bilateral differences</h2></div>
+              <span class="state-label">Percent of jaw span</span>
+            </div>
+            <div id="assessment-balance" class="assessment-metrics"><p class="empty-copy">Paired measurements will appear after analysis.</p></div>
+          </section>
+        </div>
+
+        <div class="assessment-grid assessment-grid--notes">
+          <section class="surface assessment-section" aria-labelledby="assessment-limits-title">
+            <p class="section-label">03 / Evidence boundary</p>
+            <h2 id="assessment-limits-title">Outside this one-view report</h2>
+            <ul id="assessment-limits" class="assessment-limits">
+              <li>Profile, skin, hairline, and validated attractiveness are not assessed.</li>
+            </ul>
+            <p id="assessment-caution" class="assessment-caution">Pose, focal length, expression, occlusion, and landmark accuracy are not verified from these coordinates.</p>
+          </section>
+          <section class="surface assessment-section assessment-next" aria-labelledby="assessment-next-title">
+            <p class="section-label">04 / Explore further</p>
+            <h2 id="assessment-next-title">Inspect the underlying geometry</h2>
+            <p>The Shape Laboratory retains the aligned mesh, residual vectors, simulated-reference diagnostics, and optional local photo warp. These are separate from the frontal measurements above.</p>
+            <button id="assessment-open-lab" class="button button--secondary" type="button">Open Shape Laboratory <span aria-hidden="true">→</span></button>
+            <a href="./docs/ASSESSMENT_SCOPE.md">Read measurement definitions and evidence limits</a>
+          </section>
+        </div>
+      </section>
+
+      <section
         id="shape-laboratory"
         class="tab-panel"
         role="tabpanel"
@@ -239,10 +319,11 @@
         <div class="page-intro page-intro--compact">
           <div>
             <p class="eyebrow">Local geometric morphometrics</p>
-            <h1>Explore shape space, <em>not appearance.</em></h1>
+            <h1>Explore the geometry <em>behind the report.</em></h1>
             <p>
               Select a simulated sample, load a de-identified 68×2 matrix, or explicitly extract
-              68 landmarks from the uploaded photo. Every result compares geometry with simulated data.
+              68 landmarks from the uploaded photo. This view compares geometry with simulated data;
+              the separate Assessment view reports observed frontal proportions.
             </p>
           </div>
           <div class="lab-readiness"><small>Analysis configuration</small><strong id="configuration-state">Waiting</strong></div>
@@ -540,6 +621,7 @@
             </p>
           </div>
           <div class="method-actions">
+            <a class="button button--secondary" href="./docs/ASSESSMENT_SCOPE.md">Assessment scope</a>
             <a class="button button--secondary" href="./docs/mathematical_theory.md">Open derivations</a>
             <a class="button button--primary" href="./docs/bio_social_aesthetic_manifold_apa_report.pdf">Read 27-page APA report</a>
           </div>
@@ -599,7 +681,7 @@
               <span id="conclusion-source" class="state-label">Preparing</span>
             </div>
             <p id="analysis-conclusion">The current synthetic configuration will be summarized after the local calculation finishes.</p>
-            <p class="conclusion-boundary">This conclusion concerns coordinate geometry only. A photo can supply local landmarks and texture for visualization, but no personal, psychological, sociological, or appearance inference is made.</p>
+            <p class="conclusion-boundary">This shape-space conclusion concerns coordinate geometry only. The separate Assessment view shows observed frontal ratios and paired differences; neither view estimates attractiveness, health, identity, or personal traits.</p>
           </section>
           <section class="surface blend-card">
             <p class="section-label">Synthetic blend definition</p>
@@ -641,7 +723,8 @@
                 <li>132 tangent coordinates and PCA summaries</li>
                 <li>Procrustes and regularized Mahalanobis distances</li>
                 <li>Descriptive residual shape vectors</li>
-                <li>Opt-in, browser-local landmark and texture-warp rendering</li>
+              <li>Opt-in, browser-local landmark and texture-warp rendering</li>
+              <li>Separate frontal ratios and paired landmark differences, with unavailable states</li>
               </ul>
             </div>
             <div>
@@ -663,6 +746,7 @@
       <div><strong>Shape Manifold Laboratory</strong><span>NumPy and SciPy execute locally through Pyodide.</span></div>
       <nav aria-label="Project documentation">
         <a href="./docs/bio_social_aesthetic_manifold_apa_report.pdf">APA report</a>
+        <a href="./docs/ASSESSMENT_SCOPE.md">Assessment scope</a>
         <a href="./docs/mathematical_theory.md">Mathematical theory</a>
         <a href="./README.md">Repository guide</a>
       </nav>

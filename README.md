@@ -1,7 +1,9 @@
 # bio-social-aesthetic-manifold
 
-A serverless, browser-based demonstration of descriptive geometric
-morphometrics. The application uses iterative Generalized Procrustes Analysis
+A serverless, browser-based demonstration of descriptive facial measurements
+and geometric morphometrics. An independent frontal-landmark report measures
+visible proportions and bilateral differences from 68 ordered points; the
+original shape laboratory uses iterative Generalized Procrustes Analysis
 (GPA), a 132-dimensional Kendall tangent representation, tangent-space PCA,
 and shrinkage-regularized Mahalanobis distance to compare a 68-point landmark
 configuration with explicitly simulated reference data.
@@ -18,6 +20,9 @@ population model.
   simulations.
 - The application does not estimate male, female, sex, gender, ancestry,
   identity, health, attractiveness, or any other personal category.
+- The separate frontal assessment describes image-plane ratios and paired
+  differences; its pose, expression, camera distance, and landmark accuracy
+  are not verified. It has no empirical beauty-label dataset or ideal ranges.
 - It does not rank configurations, produce population percentiles, prescribe
   coordinate changes, or optimize an observed configuration toward a reference.
 - Residual arrows are descriptive differences between aligned configurations.
@@ -30,8 +35,12 @@ population model.
   of partial Procrustes distance. It is not an attractiveness, quality,
   psychology, sociology, health, or identity score.
 
-The word *aesthetic* remains in the repository name as project provenance; no
-aesthetic response is operationalized by the software.
+The word *aesthetic* remains in the repository name as project provenance.
+The new report covers measurements often discussed in facial aesthetics, but
+no aesthetic response is operationalized by the software. Its feature-by-feature
+format is inspired by human-readable assessment reports; it is not affiliated
+with QOVES and does not offer QOVES's multi-view or human-reviewed service.
+See [assessment definitions and limits](docs/ASSESSMENT_SCOPE.md).
 
 ## Application capabilities
 
@@ -42,8 +51,11 @@ aesthetic response is operationalized by the software.
 - Uses the project's shared dark scientific design language: Inter interface
   text, Georgia display accents, cyan/amber highlights, wide desktop panels,
   and a safe-area-aware bottom navigation bar on phones.
-- Separates Photo Preview, Shape Laboratory, and Methods into accessible,
+- Separates Photo Preview, Assessment, Shape Laboratory, and Methods into accessible,
   keyboard-navigable views.
+- Reports five 2D frontal proportions and three reflected-pair discrepancies,
+  including explicit unavailability for zero denominators. Profile, hairline,
+  and skin modules remain visibly unassessed rather than fabricated.
 - Provides three deterministic synthetic configurations for immediate use.
 - Accepts JSON, CSV, and plain-text landmark configurations.
 - Optionally detects one dense face mesh locally with a pinned MediaPipe Face
@@ -84,13 +96,16 @@ bio-social-aesthetic-manifold/
 │   ├── js/app.js                  # Pyodide bridge and interface controller
 │   └── js/photo-warp.mjs          # Local landmark adapter and texture warp
 ├── core/analytics.py              # NumPy/SciPy statistical engine
+├── core/frontal_assessment.py      # Separate 2D measurement module
 ├── docs/bio_social_aesthetic_manifold_apa_report.pdf # 27-page report
+├── docs/ASSESSMENT_SCOPE.md        # Front-view metric definitions and limits
 ├── docs/mathematical_theory.md    # Detailed mathematical specification
 ├── LICENSE                        # Project MIT license and attribution pointer
 ├── LICENSES/Apache-2.0.txt        # MediaPipe source license
 ├── requirements-dev.txt           # Pinned test/report authoring environment
 ├── scripts/build_apa_report.py    # Reproducible report generator
 ├── tests/test_analytics.py        # Property, regression, and contract tests
+├── tests/test_frontal_assessment.py # Measurement invariance and missingness
 ├── tests/test_photo_warp.mjs      # Pure JavaScript geometry contracts
 ├── tests/test_report_reproducibility.py # Byte-for-byte PDF regression
 ├── THIRD_PARTY_NOTICES.md         # Canonical-model provenance
@@ -102,7 +117,8 @@ The primary implementation files are
 [`index.html`](index.html),
 [`assets/css/main.css`](assets/css/main.css),
 [`assets/js/app.js`](assets/js/app.js), and
-[`core/analytics.py`](core/analytics.py). The extended derivations are in
+[`core/analytics.py`](core/analytics.py). The front-view module is
+[`core/frontal_assessment.py`](core/frontal_assessment.py). The extended derivations are in
 [`docs/mathematical_theory.md`](docs/mathematical_theory.md), and the
 page-controlled implementation narrative is in the
 [APA report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
@@ -143,16 +159,17 @@ flowchart TB
    Landmarker 1.0.1, detects one dense mesh locally, and samples 68 points in
    the project's Dlib-style ordering. Blendshape and personal-attribute outputs
    are disabled.
-4. `assets/js/app.js` loads NumPy and SciPy, fetches `core/analytics.py`, and
-   executes it within Pyodide.
+4. `assets/js/app.js` loads NumPy and SciPy, fetches `core/analytics.py` and
+   `core/frontal_assessment.py`, and executes both within Pyodide.
 5. A JavaScript `Float64Array` containing 136 coordinate values is placed in
    the Pyodide global namespace with `pyodide.globals.set()`.
 6. JavaScript calls `run_pipeline_from_js()` and parses its JSON result.
 7. For a photo-derived configuration, unit-shape residuals are restored to
    pixels with the input centroid size and applied by a piecewise-affine mesh.
-8. The browser renders aligned configurations, optional source-to-destination
-   arrows over the photo warp, the neutral displacement index, distance
-   statistics, PCA scores, and GPA diagnostics.
+8. The browser renders an independent frontal measurement report, aligned
+   configurations, optional source-to-destination arrows over the photo warp,
+   the neutral displacement index, distance statistics, PCA scores, and GPA
+   diagnostics.
 9. Neither images nor coordinate data are transmitted to an application
    server.
 
