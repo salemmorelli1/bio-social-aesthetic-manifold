@@ -100,13 +100,27 @@ bio-social-aesthetic-manifold/
 ├── docs/bio_social_aesthetic_manifold_apa_report.pdf # 27-page report
 ├── docs/ASSESSMENT_SCOPE.md        # Front-view metric definitions and limits
 ├── docs/mathematical_theory.md    # Detailed mathematical specification
+├── package.json                    # Experimental AME Next.js 15 capture app
+├── package-lock.json               # Exact npm dependency graph
+├── src/app/                        # Independent App Router entry and styles
+├── src/lib/vision/landmarker.ts    # Verified browser-local 478-point capture
+├── src/lib/math/                  # Reserved for validated Step 3 measures
+├── src/components/dashboard/      # Step 2 upload/webcam mesh interface
+├── src/components/report/         # Reserved for Step 5 reporting
 ├── LICENSE                        # Project MIT license and attribution pointer
 ├── LICENSES/Apache-2.0.txt        # MediaPipe source license
+├── next-env.d.ts                   # Next.js type references
+├── next.config.ts                  # Parallel static-export configuration
 ├── requirements-dev.txt           # Pinned test/report authoring environment
+├── postcss.config.cjs              # Tailwind/PostCSS integration
 ├── scripts/build_apa_report.py    # Reproducible report generator
+├── tailwind.config.js              # AME design tokens and content paths
+├── tsconfig.json                   # Strict TypeScript configuration
 ├── tests/test_analytics.py        # Property, regression, and contract tests
+├── tests/test_assessment_ui.mjs    # Front-view UI contracts
 ├── tests/test_frontal_assessment.py # Measurement invariance and missingness
 ├── tests/test_photo_warp.mjs      # Pure JavaScript geometry contracts
+├── tests/test_vision.mts           # Capture contract and model-integrity tests
 ├── tests/test_report_reproducibility.py # Byte-for-byte PDF regression
 ├── THIRD_PARTY_NOTICES.md         # Canonical-model provenance
 ├── index.html                     # Application entry point
@@ -122,6 +136,50 @@ The primary implementation files are
 [`docs/mathematical_theory.md`](docs/mathematical_theory.md), and the
 page-controlled implementation narrative is in the
 [APA report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
+
+## Experimental AME capture app (Steps 1–2)
+
+The root now also contains a **parallel, un-deployed** Next.js 15 App Router
+preview, titled Aesthetic-Morphometrics-Engine (AME). It does not replace the
+existing GitHub Pages application or change the Python analysis. Its only
+implemented flow is opt-in local upload or webcam capture, a single 478-point
+MediaPipe mesh, and a Canvas overlay. The three highlighted points are an
+image-plane guide; pitch/yaw/roll normalization and an anatomical sagittal fit
+are **not yet implemented**. A single view cannot establish clinical 3D pose.
+
+With Node.js 24, from the repository root:
+
+```bash
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+Open `http://localhost:3000/`. The first explicit capture downloads the
+MediaPipe WASM runtime and the 3,758,596-byte model. The model is verified
+against the reviewed SHA-256 before inference; the version-pinned WASM assets
+remain a third-party trust boundary. No pixels are sent to a Next.js route,
+Python, or an export. Camera tracks stop when requested or on unmount. The
+preview keeps only the current canvas pixels in browser memory and has no
+persistence, user account, or application analytics. The camera is also stopped
+when its track ends or the page is hidden. A multi-face frame is rejected
+rather than silently analyzing an arbitrary person.
+
+Before releasing this preview, a human should exercise upload and webcam
+permissions on supported desktop and mobile browsers, verify a one-face image
+renders 478 points, verify no-face/multi-face error states, and confirm camera
+LED/track shutdown on stop and when leaving the tab. CI covers type checks,
+pure capture contracts, the static build, and the existing Python/JavaScript
+engine; it does not replace real-device permission and model-inference testing.
+
+The later requested modules—clinical proportions, demographic-indexed
+baselines, dimorphism, dermatology, 0–100 scoring, simulation, and a PDF—are
+**not** represented by this scaffold. The existing synthetic references are
+not Farkas norms, and no empirical beauty outcome or consented reference
+cohort is present. See [assessment scope](docs/ASSESSMENT_SCOPE.md) for the
+validation and privacy requirements before normative interpretation. AME is
+independent of and not affiliated with QOVES.
 
 ## Built-in research inputs
 
@@ -178,10 +236,10 @@ the runtime initializes. The Face Landmarker code and model are requested only
 on first photo-analysis use. Those resource requests are distinct from analysis
 data: the application does not attach the photo or coordinates to them.
 
-## Local setup
+## Local setup for the existing Pages application
 
-No Python or JavaScript package installation is needed to use the web
-application. A local HTTP server is required because browsers normally block
+No Python or JavaScript package installation is needed to use the existing
+GitHub Pages application. A local HTTP server is required because browsers normally block
 `fetch()` for pages opened directly from `file://`.
 
 ### Python server

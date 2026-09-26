@@ -52,6 +52,20 @@ jobs:
           node --check assets/js/photo-warp.mjs
           node --test tests/test_*.mjs
 
+      - name: Set up Node for experimental AME app
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "package-lock.json"
+
+      - name: Install and validate AME capture app
+        run: |
+          npm ci --no-audit --no-fund
+          npm audit --audit-level=high
+          npm test
+          npm run build
+
       - name: Rebuild and validate the 27-page report
         run: |
           python scripts/build_apa_report.py
