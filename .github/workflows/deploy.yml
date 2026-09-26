@@ -50,7 +50,7 @@ jobs:
         run: |
           node --check assets/js/app.js
           node --check assets/js/photo-warp.mjs
-          node --test tests/test_photo_warp.mjs
+          node --test tests/test_*.mjs
 
       - name: Rebuild and validate the 27-page report
         run: |

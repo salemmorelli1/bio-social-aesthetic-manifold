@@ -3,6 +3,7 @@
 const PYODIDE_VERSION = "314.0.6";
 const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 const ANALYTICS_PATH = "./core/analytics.py";
+const FRONTAL_ASSESSMENT_PATH = "./core/frontal_assessment.py";
 const EXPECTED_COORDINATE_COUNT = 136;
 const MAX_INPUT_FILE_BYTES = 1024 * 1024;
 const MAX_PHOTO_FILE_BYTES = 20 * 1024 * 1024;
@@ -46,6 +47,7 @@ const state = {
   currentDemo: "a",
   inputKind: "synthetic",
   result: null,
+  assessment: null,
   analysisToken: 0,
   analysisRunning: false,
   activeView: "photo",
@@ -84,6 +86,14 @@ function cacheInterface() {
   ui.viewTabs = Array.from(document.querySelectorAll("[data-view]"));
   ui.viewPanels = Array.from(document.querySelectorAll("[data-panel]"));
   ui.openLab = getElement("open-lab");
+  ui.assessmentOpenLab = getElement("assessment-open-lab");
+  ui.assessmentProvenance = getElement("assessment-provenance");
+  ui.assessmentStatus = getElement("assessment-status");
+  ui.assessmentIntro = getElement("assessment-intro");
+  ui.assessmentProportions = getElement("assessment-proportions");
+  ui.assessmentBalance = getElement("assessment-balance");
+  ui.assessmentLimits = getElement("assessment-limits");
+  ui.assessmentCaution = getElement("assessment-caution");
   ui.openScope = getElement("open-scope");
   ui.scopeModal = getElement("scope-modal");
   ui.closeScope = getElement("close-scope");
@@ -609,16 +619,18 @@ async function initializeRuntime() {
     setRuntimeStage("packages", "Loading NumPy and SciPy into browser memory.", 42);
     await state.pyodide.loadPackage(["numpy", "scipy"]);
 
-    setRuntimeStage("engine", "Loading the descriptive morphometric engine.", 76);
-    const response = await fetch(ANALYTICS_PATH, { cache: "no-cache" });
-    if (!response.ok) {
-      throw new Error(`Unable to load ${ANALYTICS_PATH} (${response.status}).`);
+    setRuntimeStage("engine", "Loading the morphometric engine and frontal measurements.", 76);
+    for (const sourcePath of [ANALYTICS_PATH, FRONTAL_ASSESSMENT_PATH]) {
+      const response = await fetch(sourcePath, { cache: "no-cache" });
+      if (!response.ok) {
+        throw new Error(`Unable to load ${sourcePath} (${response.status}).`);
+      }
+      await state.pyodide.runPythonAsync(await response.text());
     }
-    const analyticsSource = await response.text();
-    await state.pyodide.runPythonAsync(analyticsSource);
 
-    if (!state.pyodide.globals.has("run_pipeline_from_js")) {
-      throw new Error("The Python bridge function was not defined by the analytics engine.");
+    if (!state.pyodide.globals.has("run_pipeline_from_js")
+      || !state.pyodide.globals.has("assess_frontal_landmarks_json")) {
+      throw new Error("The Python bridge functions were not defined by the analysis modules.");
     }
 
     state.runtimeReady = true;
@@ -668,6 +680,7 @@ async function loadSimulatedDemo(demoKey, runAfterLoad = true) {
       ? "Synthetic Blend"
       : `Synthetic Sample ${demoKey.toUpperCase()}`;
     state.result = null;
+    state.assessment = null;
     state.photoAnalysisSource = null;
     state.photoLandmarks = null;
     state.photoDenseLandmarkCount = 0;
@@ -785,6 +798,7 @@ async function handleLandmarkFile(file) {
     state.currentDemo = null;
     state.inputKind = "coordinate";
     state.result = null;
+    state.assessment = null;
     state.photoAnalysisSource = null;
     state.photoLandmarks = null;
     state.photoDenseLandmarkCount = 0;
@@ -827,6 +841,8 @@ async function runAnalysis() {
 
   state.analysisRunning = true;
   const token = ++state.analysisToken;
+  state.result = null;
+  resetResultDisplay();
   ui.analysisState.textContent = "Computing";
   ui.configurationState.textContent = "Locked";
   ui.analyzeButton.disabled = true;
@@ -849,12 +865,21 @@ async function runAnalysis() {
     if (result.error) {
       throw new Error(result.error);
     }
+    const frontalResponse = await state.pyodide.runPythonAsync(
+      "assess_frontal_landmarks_json(__landmark_coordinates)"
+    );
+    const assessment = JSON.parse(String(frontalResponse));
+    if (assessment.error) {
+      throw new Error(assessment.error);
+    }
     if (token !== state.analysisToken) {
       return;
     }
 
     state.result = result;
+    state.assessment = assessment;
     renderResult(result);
+    renderAssessment(assessment);
     drawCurrentState();
     renderCurrentPhotoWarp();
     ui.analysisState.textContent = "Complete";
@@ -863,6 +888,11 @@ async function runAnalysis() {
     announce("Descriptive shape-space analysis complete.");
   } catch (error) {
     if (token === state.analysisToken) {
+      state.result = null;
+      resetResultDisplay();
+      if (state.inputKind === "photo") {
+        clearPhotoWarpDisplay("Analysis failed; rerun the local photo analysis before using this warp.", "Analysis required");
+      }
       ui.analysisState.textContent = "Error";
       ui.configurationState.textContent = "Loaded";
       announce(error instanceof Error ? error.message : String(error));
@@ -912,7 +942,75 @@ function displacementIndexFromResult(result) {
   return computeGeometricDisplacementIndex(result?.distances?.partial_procrustes);
 }
 
+function resetAssessmentDisplay() {
+  ui.assessmentProvenance.textContent = "No active analysis";
+  ui.assessmentStatus.textContent = "Not run";
+  ui.assessmentIntro.textContent = "Run a simulated sample, a coordinate file, or a local photo analysis to see observed frontal measurements.";
+  ui.assessmentCaution.textContent = "Pose, focal length, expression, occlusion, and landmark accuracy are not verified from these coordinates.";
+  for (const [container, message] of [
+    [ui.assessmentProportions, "Measurements will appear after analysis."],
+    [ui.assessmentBalance, "Paired measurements will appear after analysis."],
+  ]) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "empty-copy";
+    placeholder.textContent = message;
+    container.replaceChildren(placeholder);
+  }
+  const limitation = document.createElement("li");
+  limitation.textContent = "Profile, skin, hairline, and validated attractiveness are not assessed.";
+  ui.assessmentLimits.replaceChildren(limitation);
+}
+
+function renderAssessment(assessment) {
+  if (!Array.isArray(assessment.metrics) || !Array.isArray(assessment.not_assessed)) {
+    throw new Error("The frontal assessment response is missing its measurements or limits.");
+  }
+  const sourceKind = state.inputKind;
+  ui.assessmentProvenance.textContent = sourceKind === "photo"
+    ? "Local photo · pose unverified"
+    : sourceKind === "coordinate"
+      ? "Coordinate file · source unverified"
+      : "Synthetic example · no person";
+  ui.assessmentStatus.textContent = `${assessment.metrics.filter((metric) => metric.status === "measured").length} observed`;
+  ui.assessmentIntro.textContent = sourceKind === "photo"
+    ? "These are measurements of the locally detected 68-point mesh in one photo. Lighting, expression, camera distance, and viewpoint can change them; no attractiveness score was estimated."
+    : sourceKind === "coordinate"
+      ? "These measurements describe the supplied 68-point coordinate file. Its photographic origin, viewpoint, and landmark quality are not verified."
+      : "This is a simulated configuration, not an assessment of a person. Load a photo and explicitly run local landmark detection in the Shape Laboratory for an image-based measurement.";
+
+  ui.assessmentProportions.replaceChildren();
+  ui.assessmentBalance.replaceChildren();
+  for (const metric of assessment.metrics) {
+    const card = document.createElement("article");
+    card.className = "assessment-metric";
+    const heading = document.createElement("h3");
+    heading.textContent = metric.label;
+    const value = document.createElement("strong");
+    const numeric = Number(metric.value);
+    const available = metric.status === "measured" && metric.value !== null && Number.isFinite(numeric);
+    value.textContent = available
+      ? `${numeric.toFixed(metric.unit === "ratio" ? 2 : 1)}${metric.unit === "ratio" ? "" : "%"}`
+      : "Unavailable";
+    const description = document.createElement("p");
+    description.textContent = available ? metric.definition : `${metric.definition} ${metric.reason || "Required landmarks are unavailable."}`;
+    card.append(heading, value, description);
+    const container = metric.key.endsWith("_paired_discrepancy_pct")
+      ? ui.assessmentBalance : ui.assessmentProportions;
+    container.append(card);
+  }
+
+  ui.assessmentLimits.replaceChildren();
+  for (const item of assessment.not_assessed) {
+    const limitation = document.createElement("li");
+    limitation.textContent = item;
+    ui.assessmentLimits.append(limitation);
+  }
+  ui.assessmentCaution.textContent = assessment.interpretation;
+}
+
 function resetResultDisplay() {
+  state.assessment = null;
+  resetAssessmentDisplay();
   ui.metricPartial.textContent = "—";
   ui.metricFull.textContent = "—";
   ui.metricMahalanobis.textContent = "—";
@@ -1115,8 +1213,8 @@ async function analyzePhotoLocally() {
     }
     ui.photoAnalysisStatus.textContent = "Photo active";
     ui.photoWarpState.textContent = "Rendered locally";
-    ui.photoWarpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-    announce("Local photo landmarks analyzed and the geometric photo warp rendered.");
+    selectView("assessment", true);
+    announce("Local photo landmarks measured. The report is open; the photo warp remains in the Shape Laboratory.");
   } catch (error) {
     ui.photoAnalysisStatus.textContent = "Could not detect";
     ui.photoWarpState.textContent = "Photo warp unavailable";
@@ -1477,9 +1575,9 @@ function getStudyContextMetadata() {
 }
 
 function exportAnalysis() {
-  if (!state.result) return;
+  if (!state.result || !state.assessment) return;
   const payload = {
-    export_schema_version: "1.0",
+    export_schema_version: "1.1",
     application: "bio-social-aesthetic-manifold",
     exported_at_utc: new Date().toISOString(),
     source_label: state.currentSource,
@@ -1493,6 +1591,7 @@ function exportAnalysis() {
     photo_render_diagnostics: state.inputKind === "photo"
       ? state.photoWarpDiagnostics
       : null,
+    frontal_assessment: state.assessment,
     analysis: state.result,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -1520,6 +1619,7 @@ function bindInterfaceEvents() {
     tab.addEventListener("keydown", handleTabKeydown);
   });
   ui.openLab.addEventListener("click", () => selectView("lab", true));
+  ui.assessmentOpenLab.addEventListener("click", () => selectView("lab", true));
 
   ui.openScope.addEventListener("click", openScopeModal);
   ui.closeScope.addEventListener("click", closeScopeModal);

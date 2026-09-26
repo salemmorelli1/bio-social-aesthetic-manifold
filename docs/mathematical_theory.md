@@ -9,14 +9,20 @@ generates no recommended coordinate modifications. Reference A, Reference B,
 and the pooled reference are simulated probability models used to demonstrate
 the mechanics of shape-space statistics.
 
+The separate front-view measurement module is documented in
+[Frontal landmark assessment](./ASSESSMENT_SCOPE.md). Its measured ratios and
+paired discrepancies do not use the simulated GPA reference as a beauty norm;
+this document and the 27-page report cover the original morphometric engine.
+
 The website also contains a local image-confirmation view. Nothing is detected
 until the user explicitly selects the photo-analysis route. At that point, a
 pinned MediaPipe Face Landmarker runs on the image in browser memory and a
 fixed correspondence adapter samples 68 points from its dense mesh. Python
 receives only those coordinate values; it never receives image pixels. The
 returned residual field may then drive a browser-canvas texture warp. No
-blendshape, identity, demographic, health, emotion, psychological,
-sociological, or appearance inference is requested or reported.
+blendshape, identity, demographic, health, emotion, psychological, or
+sociological inference is requested. The separate Assessment view reports only
+observed 2D frontal ratios and paired differences, never attractiveness.
 
 A page-controlled, 27-page APA-style explanation of the implementation and a
 worked synthetic example is available in the
