@@ -15,6 +15,24 @@ sys.path.insert(0, str(ROOT))
 from scripts import build_apa_report  # noqa: E402
 
 
+def _report_narrative_text() -> str:
+    return " ".join(
+        str(block.get("text", ""))
+        for page in build_apa_report.PAGES
+        for block in page["blocks"]
+    )
+
+
+def test_report_narrative_matches_current_interface_and_test_surface():
+    """Prevent assessment-era UI and validation prose from drifting backward."""
+
+    narrative = _report_narrative_text()
+    assert "accessible four-tab workspace" in narrative
+    assert "The Python and JavaScript test suites cover" in narrative
+    assert "three-tab workspace" not in narrative
+    assert "Eighty-six tests" not in narrative
+
+
 def test_report_builder_reproduces_committed_bytes(tmp_path, monkeypatch):
     """Two clean builds and the committed PDF must be byte-identical.
 
