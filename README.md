@@ -104,7 +104,7 @@ bio-social-aesthetic-manifold/
 ├── package-lock.json               # Exact npm dependency graph
 ├── src/app/                        # Independent App Router entry and styles
 ├── src/lib/vision/landmarker.ts    # Verified browser-local 478-point capture
-├── src/lib/math/                  # Reserved for validated Step 3 measures
+├── src/lib/math/                  # Pass 2 descriptive geometry and simulated export
 ├── src/components/dashboard/      # Step 2 upload/webcam mesh interface
 ├── src/components/report/         # Reserved for Step 5 reporting
 ├── LICENSE                        # Project MIT license and attribution pointer
@@ -114,6 +114,7 @@ bio-social-aesthetic-manifold/
 ├── requirements-dev.txt           # Pinned test/report authoring environment
 ├── postcss.config.cjs              # Tailwind/PostCSS integration
 ├── scripts/build_apa_report.py    # Reproducible report generator
+├── scripts/export_ame_references.py # Simulated GPA export/check for AME
 ├── tailwind.config.js              # AME design tokens and content paths
 ├── tsconfig.json                   # Strict TypeScript configuration
 ├── tests/test_analytics.py        # Property, regression, and contract tests
@@ -121,6 +122,7 @@ bio-social-aesthetic-manifold/
 ├── tests/test_frontal_assessment.py # Measurement invariance and missingness
 ├── tests/test_photo_warp.mjs      # Pure JavaScript geometry contracts
 ├── tests/test_vision.mts           # Capture contract and model-integrity tests
+├── tests/test_morphometrics.mts    # Python/TypeScript geometry parity tests
 ├── tests/test_report_reproducibility.py # Byte-for-byte PDF regression
 ├── THIRD_PARTY_NOTICES.md         # Canonical-model provenance
 ├── index.html                     # Application entry point
@@ -137,15 +139,19 @@ The primary implementation files are
 page-controlled implementation narrative is in the
 [APA report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
 
-## Experimental AME capture app (Steps 1–2)
+## Experimental AME app (Passes 1–2)
 
 The root now also contains a **parallel, un-deployed** Next.js 15 App Router
 preview, titled Aesthetic-Morphometrics-Engine (AME). It does not replace the
-existing GitHub Pages application or change the Python analysis. Its only
-implemented flow is opt-in local upload or webcam capture, a single 478-point
-MediaPipe mesh, and a Canvas overlay. The three highlighted points are an
-image-plane guide; pitch/yaw/roll normalization and an anatomical sagittal fit
-are **not yet implemented**. A single view cannot establish clinical 3D pose.
+existing GitHub Pages application or change the Python analysis. Its visible
+flow is opt-in local upload or webcam capture, a single 478-point MediaPipe
+mesh, and a Canvas overlay. Pass 2 adds a pure TypeScript module for the
+existing eight descriptive 2D measurements, 478-to-68 image-pixel mapping,
+and proper-rotation Procrustes distances to explicitly **simulated** reference
+shapes. This library is validated but not yet wired to the preview dashboard.
+The three highlighted points are an image-plane guide; pitch/yaw/roll
+normalization and an anatomical sagittal fit are **not yet implemented**.
+A single view cannot establish clinical 3D pose.
 
 With Node.js 24, from the repository root:
 
@@ -170,16 +176,20 @@ Before releasing this preview, a human should exercise upload and webcam
 permissions on supported desktop and mobile browsers, verify a one-face image
 renders 478 points, verify no-face/multi-face error states, and confirm camera
 LED/track shutdown on stop and when leaving the tab. CI covers type checks,
-pure capture contracts, the static build, and the existing Python/JavaScript
-engine; it does not replace real-device permission and model-inference testing.
+pure capture and math contracts, the simulated-reference export, the static
+build, and the existing Python/JavaScript engine; it does not replace
+real-device permission and model-inference testing.
 
-The later requested modules—clinical proportions, demographic-indexed
-baselines, dimorphism, dermatology, 0–100 scoring, simulation, and a PDF—are
-**not** represented by this scaffold. The existing synthetic references are
-not Farkas norms, and no empirical beauty outcome or consented reference
-cohort is present. See [assessment scope](docs/ASSESSMENT_SCOPE.md) for the
-validation and privacy requirements before normative interpretation. AME is
-independent of and not affiliated with QOVES.
+The explicit [Pass 2 math contract](src/lib/math/README.md) has no male/female
+reference matrices. The later requested modules—clinical proportions,
+demographic-indexed baselines, dimorphism, dermatology, 0–100 aesthetic
+scoring, simulation, and a PDF—are **not** implemented. The existing synthetic
+references are not Farkas norms, and no empirical beauty outcome or consented
+reference cohort is present. A population comparison would require a licensed
+or consented dataset, documented sampling and measurement, and independent
+validation before any clinical or demographic label. See
+[assessment scope](docs/ASSESSMENT_SCOPE.md) for the validation and privacy
+requirements. AME is independent of and not affiliated with QOVES.
 
 ## Built-in research inputs
 
