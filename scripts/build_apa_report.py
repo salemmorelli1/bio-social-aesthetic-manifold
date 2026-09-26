@@ -283,7 +283,7 @@ PAGES: list[dict[str, Any]] = [
         "title": "Serverless and Local-First Statistical Architecture",
         "blocks": [
             paragraph(
-                "The application is a static GitHub Pages site. HTML defines the accessible three-tab "
+                "The application is a static GitHub Pages site. HTML defines the accessible four-tab "
                 "workspace, CSS provides the responsive phone-like presentation, JavaScript controls "
                 "state and validation, and Pyodide instantiates Python inside the browser. NumPy and "
                 "SciPy are loaded from a pinned content-delivery-network path. No application server, "
@@ -886,11 +886,12 @@ PAGES: list[dict[str, Any]] = [
             paragraph(
                 "Reproducibility also depends on provenance. The engine version, schema version, "
                 "reference key, reference n, and deterministic seeds are returned with each result. "
-                "Eighty-six tests cover invariances, algebraic identities, the canonical template "
-                "digest, tangent-basis properties, malformed inputs, warning paths, and the browser JSON "
-                "contract. The report builder verifies its worked fixture and exact 27-page count before "
-                "printing a SHA-256 digest. requirements-dev.txt pins the authoring stack; neither seeds "
-                "nor sign conventions alone promise cross-platform bitwise equality."
+                "The Python and JavaScript test suites cover invariances, algebraic identities, the "
+                "canonical template digest, tangent-basis properties, malformed inputs, warning paths, "
+                "browser JSON and measurement-rendering contracts, and photo-warp geometry. The report "
+                "builder verifies its worked fixture and exact 27-page count before printing a SHA-256 "
+                "digest. requirements-dev.txt pins the authoring stack; neither seeds nor sign "
+                "conventions alone promise cross-platform bitwise equality."
             ),
         ],
     },

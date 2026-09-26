@@ -150,7 +150,7 @@ flowchart TB
     F --> G["Metrics, shape plot, and optional photo warp"]
 ```
 
-1. `index.html` loads the three-view interface, the pinned Pyodide
+1. `index.html` loads the four-view interface, the pinned Pyodide
    distribution, and the JavaScript bridge.
 2. A selected image receives a temporary browser object URL and is shown in an
    isolated preview. No detection occurs until the user presses **Detect
