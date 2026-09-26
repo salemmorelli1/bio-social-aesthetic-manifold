@@ -46,6 +46,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q core scripts tests
 
+      - name: Verify AME simulated-reference provenance and numerical contract
+        run: python scripts/export_ame_references.py --check
+
       - name: Check and test JavaScript
         run: |
           node --check assets/js/app.js
