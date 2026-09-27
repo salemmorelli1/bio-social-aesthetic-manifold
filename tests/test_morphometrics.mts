@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   MEDIAPIPE_TO_DLIB_68,
+  assessDenseImageMeasurements,
   assessFrontalLandmarks,
   compareWithSimulatedReference,
   denseMeshToDlib68,
@@ -80,6 +81,51 @@ test("translation, scale and rotation leave the descriptive quantities unchanged
   }
   assert.ok(Math.abs(compareWithSimulatedReference(transformed, "pooled")
     .partial_procrustes_distance - baseDistance) < 1e-11);
+});
+
+test("large coordinate origins preserve the representable geometry", () => {
+  const shifted: Point2D[] = canonical.map(([x, y]) => [x + 1e10, y - 1e10]);
+  const recentered: Point2D[] = shifted.map(([x, y]) => [x - 1e10, y + 1e10]);
+  const actual = assessFrontalLandmarks(shifted).metrics;
+  const expected = assessFrontalLandmarks(recentered).metrics;
+  for (let index = 0; index < actual.length; index += 1) {
+    assert.ok(Math.abs((actual[index].value ?? NaN) - (expected[index].value ?? NaN)) < 1e-12,
+      actual[index].key);
+  }
+  assert.ok(Math.abs(compareWithSimulatedReference(shifted, "pooled").partial_procrustes_distance -
+    compareWithSimulatedReference(recentered, "pooled").partial_procrustes_distance) < 1e-12);
+});
+
+test("dense image observations use eye and outline points without anatomical targets", () => {
+  const mesh = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  for (const [index, x, y] of [
+    [33, .2, .4], [263, .8, .4], [133, .35, .42], [362, .65, .42],
+    [234, .1, .5], [454, .9, .5], [148, .25, .8], [377, .75, .8],
+  ]) mesh[index] = { x, y, z: 0 };
+  const measured = assessDenseImageMeasurements(mesh, 1000, 1000);
+  const values = Object.fromEntries(measured.metrics.map((metric) => [metric.key, metric.value]));
+  assert.equal(measured.pose_verified, false);
+  assert.ok(Math.abs((values.intercanthal_to_outer_eye_span ?? NaN) - .5) < 1e-12);
+  assert.ok(Math.abs((values.lower_outline_to_cheek_width ?? NaN) - .625) < 1e-12);
+  assert.ok((values.viewer_left_eye_tilt_deg ?? 0) > 0);
+  assert.ok((values.viewer_right_eye_tilt_deg ?? 0) > 0);
+  assert.ok(measured.not_assessed.some((item) => item.includes("Gonion")));
+
+  const angle = .62;
+  const rotated = mesh.map(({ x, y, z }) => ({
+    x: .5 + (x - .5) * Math.cos(angle) + (y - .5) * Math.sin(angle),
+    y: .5 - (x - .5) * Math.sin(angle) + (y - .5) * Math.cos(angle), z,
+  }));
+  const moved = assessDenseImageMeasurements(rotated, 1000, 1000);
+  for (const metric of measured.metrics) {
+    const rotatedValue = moved.metrics.find((other) => other.key === metric.key)?.value;
+    assert.ok(Math.abs((metric.value ?? NaN) - (rotatedValue ?? NaN)) < 1e-10, metric.key);
+  }
+
+  mesh[263] = mesh[33];
+  const missing = assessDenseImageMeasurements(mesh, 1000, 1000).metrics;
+  assert.equal(missing.find((metric) => metric.key === "intercanthal_to_outer_eye_span")?.status, "unavailable");
+  assert.equal(missing.find((metric) => metric.key === "viewer_left_eye_tilt_deg")?.value, null);
 });
 
 test("reflection is not an allowed Procrustes rotation", () => {

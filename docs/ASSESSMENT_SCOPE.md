@@ -77,3 +77,37 @@ All selected images remain in browser memory; the local report includes
 measurements and the selected source kind, not image pixels. JSON export is an
 explicit user action and can contain the 68 input-derived measurements, so
 handle a downloaded report as personal data when a real photo was analyzed.
+
+## AME preview: additional projected measurements
+
+The separate Next.js preview renders the eight definitions above and four
+additional observations from its browser-local 478-point mesh. Coordinates
+are converted from image-normalized x/y to pixels before any distance, so a
+non-square image does not distort its ratios. Eye-corner angles are measured
+relative to the line joining the two outer eye corners, which removes in-plane
+roll from the reported angle but does not estimate 3D head pose.
+
+| Quantity | MediaPipe indices and definition | Limit |
+|---|---|---|
+| Inner / outer eye span | `d(133,362) / d(33,263)` | Projected eye corners; no target range. |
+| Viewer-left and viewer-right eye tilt | Signed medial-to-lateral corner angle relative to the outer-corner line; positive if the lateral corner is higher | Image roll is removed; yaw, pitch, perspective, and expression remain. |
+| Lower outline / cheek width | `d(148,377) / d(234,454)` | The lower outline points are **not** anatomical Gonion; this is not a clinical bigonial ratio. |
+
+The preview also shows partial Procrustes distance to the **simulated pooled**
+GPA consensus. This is a shape-space displacement, not a population z-score,
+attractiveness rating, or individual diagnostic. The 2D alignment removes
+translation, uniform scale, and in-plane rotation but cannot undo pose and
+camera perspective. MediaPipe identifies its landmark output as normalized
+image coordinates: [FaceLandmarkerResult](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/FaceLandmarkerResult).
+
+The suggested `1:1:1` facial thirds, `0.38–0.42` intercanthal interval, and
+sex-specific gonial-angle ideals are **not** built into the engine. Trichion,
+Nasion, Articulare, and Gonion are not validated by this single projected mesh.
+Nor is a fixed `±3°` yaw/pitch/roll gate or a focal-length estimator claimed:
+no camera calibration or pose-error validation is available. A comparative
+study by [Le et al. (2002)](https://pubmed.ncbi.nlm.nih.gov/11891603/) found
+that equal facial profile thirds did not describe its sampled groups, which
+illustrates why a classical canon cannot be substituted for a measured norm.
+The public [QOVES press description](https://www.qoves.com/press-kit) describes
+personal reports and evidence-cited planning; its proprietary internal
+algorithms and reference data are not available to this project.

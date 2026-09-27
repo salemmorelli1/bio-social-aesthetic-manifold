@@ -9,18 +9,18 @@ export default function Home() {
           <span className="brand-symbol"><ScanFace size={22} strokeWidth={1.7} aria-hidden="true" /></span>
           <span>AME <small>Research preview</small></span>
         </a>
-        <span className="header-note">Aesthetic-Morphometrics-Engine · Steps 1–2</span>
+        <span className="header-note">Aesthetic-Morphometrics-Engine · Measurement preview</span>
       </header>
 
       <div className="content-grid">
         <section className="intro" aria-labelledby="intro-title">
           <p className="eyebrow">An instrument for observation</p>
           <h1 id="intro-title">Facial geometry, <em>without the guesswork.</em></h1>
-          <p className="lead">This first stage maps one face to a dense landmark mesh entirely in your browser. It makes no claim about beauty, identity, ancestry, sex, health, or what someone should change.</p>
+          <p className="lead">With your choice of photo or camera, this preview maps one face and reports projected geometry entirely in your browser. It makes no claim about beauty, identity, ancestry, sex, health, or what someone should change.</p>
           <div className="step-rail" aria-label="Project stages">
             <span className="step-current">01 · Foundation</span>
             <span className="step-current">02 · Capture</span>
-            <span className="step-future">03 · Measurement — planned</span>
+            <span className="step-current">03 · Projected measurements</span>
           </div>
           <div className="scope-note">
             <span className="scope-line" />
