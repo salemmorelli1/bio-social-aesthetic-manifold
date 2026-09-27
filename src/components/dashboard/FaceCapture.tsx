@@ -9,7 +9,45 @@ import {
   singleFaceMesh,
   validatePhotoFile,
   type LocalLandmarker,
+  type MeshPoint,
 } from "@/lib/vision/landmarker";
+import {
+  assessDenseImageMeasurements,
+  assessFrontalLandmarks,
+  compareWithSimulatedReference,
+  denseMeshToDlib68,
+} from "@/lib/math/morphometrics";
+
+type MeasurementPreview = Readonly<{
+  frontal: ReturnType<typeof assessFrontalLandmarks>;
+  dense: ReturnType<typeof assessDenseImageMeasurements>;
+  partialDistance: number;
+}>;
+
+function measure(mesh: readonly MeshPoint[], width: number, height: number): MeasurementPreview {
+  const landmarks = denseMeshToDlib68(mesh, width, height);
+  return {
+    frontal: assessFrontalLandmarks(landmarks),
+    dense: assessDenseImageMeasurements(mesh, width, height),
+    partialDistance: compareWithSimulatedReference(landmarks, "pooled")
+      .partial_procrustes_distance,
+  };
+}
+
+const METRIC_LABELS: Record<string, string> = {
+  inner_eye_to_eye_width: "Inner-eye / eye width",
+  nose_to_inner_eye: "Nose / inner-eye span",
+  mouth_to_nose: "Mouth / nose width",
+  mouth_to_jaw: "Mouth / jaw span",
+  lower_visible_face_fraction: "Lower visible-face fraction",
+  eyes_paired_discrepancy_pct: "Eye-pair discrepancy",
+  jaw_paired_discrepancy_pct: "Jaw-pair discrepancy",
+  mouth_paired_discrepancy_pct: "Mouth-pair discrepancy",
+  intercanthal_to_outer_eye_span: "Inner / outer eye span",
+  viewer_left_eye_tilt_deg: "Viewer-left eye tilt",
+  viewer_right_eye_tilt_deg: "Viewer-right eye tilt",
+  lower_outline_to_cheek_width: "Lower outline / cheek width",
+};
 
 function messageFor(error: unknown): string {
   return error instanceof Error ? error.message : "The local capture could not finish.";
@@ -25,6 +63,7 @@ export default function FaceCapture() {
   const [busy, setBusy] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [faceCount, setFaceCount] = useState<number | null>(null);
+  const [measurements, setMeasurements] = useState<MeasurementPreview | null>(null);
   const [status, setStatus] = useState("Choose an image or start the camera. Nothing runs until you choose.");
 
   const releaseCamera = useCallback(() => {
@@ -54,6 +93,7 @@ export default function FaceCapture() {
     clearCanvas();
     setCameraActive(false);
     setFaceCount(null);
+    setMeasurements(null);
     setStatus("Camera off. Media tracks stopped and the displayed frame cleared.");
   }, [clearCanvas, releaseCamera]);
 
@@ -91,6 +131,7 @@ export default function FaceCapture() {
     clearCanvas();
     setCameraActive(false);
     setFaceCount(null);
+    setMeasurements(null);
     setBusy(true);
     setStatus("Checking the model and processing the image locally…");
     let bitmap: ImageBitmap | null = null;
@@ -117,6 +158,7 @@ export default function FaceCapture() {
       canvas.width = size.width;
       canvas.height = size.height;
       drawMeshOverlay(canvas, source, mesh, handle.connections);
+      setMeasurements(mesh ? measure(mesh, size.width, size.height) : null);
       setFaceCount(mesh ? 1 : 0);
       setStatus(mesh
         ? "478 local mesh landmarks mapped. This is geometry, not an appearance rating."
@@ -133,6 +175,7 @@ export default function FaceCapture() {
     if (busy || cameraActive) return;
     const session = ++sessionRef.current;
     setFaceCount(null);
+    setMeasurements(null);
     setBusy(true);
     setStatus("Requesting camera permission and verifying the local model…");
     try {
@@ -162,6 +205,7 @@ export default function FaceCapture() {
       setStatus("Live mesh runs locally. Stop camera to end the stream.");
 
       let lastFrame = -Infinity;
+      let lastMeasurement = -Infinity;
       const nextFrame = (now: number) => {
         if (session !== sessionRef.current) return;
         try {
@@ -177,6 +221,12 @@ export default function FaceCapture() {
             const mesh = singleFaceMesh(handle.task.detectForVideo(video, now));
             drawMeshOverlay(canvas, video, mesh, handle.connections);
             setFaceCount(mesh ? 1 : 0);
+            if (!mesh) {
+              setMeasurements(null);
+            } else if (now - lastMeasurement >= 500) {
+              lastMeasurement = now;
+              setMeasurements(measure(mesh, size.width, size.height));
+            }
           }
           frameRef.current = requestAnimationFrame(nextFrame);
         } catch (error) {
@@ -229,6 +279,24 @@ export default function FaceCapture() {
         )}
       </div>
       <p className="capture-status" role="status" aria-live="polite">{status}</p>
+      {measurements && (
+        <section className="measurement-preview" aria-labelledby="measurement-title">
+          <p className="eyebrow">Step 03 / projected geometry</p>
+          <h3 id="measurement-title">Measured in this image</h3>
+          <p>Image-space distances and angles depend on pose, expression, perspective, and mesh accuracy. They are not anatomical or aesthetic grades.</p>
+          <dl className="measurement-grid">
+            {[...measurements.frontal.metrics, ...measurements.dense.metrics].map((metric) => (
+              <div className="measurement-card" key={metric.key}>
+                <dt>{METRIC_LABELS[metric.key] ?? metric.key}</dt>
+                <dd>{metric.value === null ? "Unavailable" :
+                  `${metric.value.toFixed(metric.unit === "degrees" ? 1 : 3)}${metric.unit === "ratio" ? "" : metric.unit === "degrees" ? "°" : "%"}`}</dd>
+                <small>{metric.value === null ? metric.reason : metric.definition}</small>
+              </div>
+            ))}
+          </dl>
+          <p className="reference-note">Partial Procrustes distance to the <strong>simulated pooled reference:</strong> {measurements.partialDistance.toFixed(4)}. This is a geometric displacement from an algorithm-generated example, with no clinical or beauty interpretation.</p>
+        </section>
+      )}
       <p className="capture-footnote">No account, server upload, demographic estimate, or report export is used in this capture stage. The model and WASM files are fetched from pinned third-party paths; model bytes are checked against a reviewed SHA-256.</p>
     </section>
   );

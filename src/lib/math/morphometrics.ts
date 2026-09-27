@@ -14,7 +14,7 @@ export type SimulatedReferenceKey = "a" | "b" | "pooled";
 export type MeasuredMetric = Readonly<{
   key: string;
   value: number | null;
-  unit: "ratio" | "% of jaw span";
+  unit: "ratio" | "% of jaw span" | "degrees";
   status: "measured" | "unavailable";
   landmark_indices: readonly number[];
   definition: string;
@@ -59,9 +59,21 @@ function preshape(landmarks: readonly Point2D[]): Point2D[] {
         !Number.isFinite(point[0]) || !Number.isFinite(point[1]))) {
     throw new Error("Expected 68 ordered finite two-dimensional landmarks.");
   }
-  const peak = Math.max(...landmarks.flatMap(([x, y]) => [Math.abs(x), Math.abs(y)]));
+  // Translate first so a distant coordinate origin does not consume the
+  // mantissa of an otherwise representable face. Fall back to prescaling if
+  // subtracting two finite coordinates of opposite sign overflows.
+  const [originX, originY] = landmarks[0];
+  let shifted = landmarks.map(([x, y]) => [x - originX, y - originY] as const);
+  if (shifted.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+    const coordinatePeak = Math.max(...landmarks.flatMap(([x, y]) => [Math.abs(x), Math.abs(y)]));
+    shifted = landmarks.map(([x, y]) => [
+      x / coordinatePeak - originX / coordinatePeak,
+      y / coordinatePeak - originY / coordinatePeak,
+    ] as const);
+  }
+  const peak = Math.max(...shifted.flatMap(([x, y]) => [Math.abs(x), Math.abs(y)]));
   if (peak === 0) throw new Error("The configuration has zero centroid size.");
-  const scaled = landmarks.map(([x, y]) => [x / peak, y / peak] as const);
+  const scaled = shifted.map(([x, y]) => [x / peak, y / peak] as const);
   if (scaled.every(([x, y]) => x === scaled[0][0] && y === scaled[0][1])) {
     throw new Error("The configuration has zero centroid size.");
   }
@@ -164,6 +176,73 @@ export function assessFrontalLandmarks(landmarks: readonly Point2D[]): Readonly<
     pose_verified: false,
     image_quality_verified: false,
     metrics,
+  };
+}
+
+/** Four additional image-space observations from fixed MediaPipe indices.
+ *
+ * The eye line removes in-plane roll only. It cannot correct yaw, pitch,
+ * expression, perspective, or the difference between mesh and anatomical
+ * landmarks. In particular, 148/377 are lower outline points, not Gonion.
+ */
+export function assessDenseImageMeasurements(
+  mesh: readonly MeshPoint[], imageWidth: number, imageHeight: number,
+): Readonly<{
+  analysis_kind: "exploratory_dense_image_measurements";
+  pose_verified: false;
+  metrics: readonly MeasuredMetric[];
+  not_assessed: readonly string[];
+}> {
+  denseMeshToDlib68(mesh, imageWidth, imageHeight);
+  const point = (index: number): Point2D => [
+    mesh[index].x * imageWidth, mesh[index].y * imageHeight,
+  ];
+  const span = (first: number, second: number) => {
+    const [a, b] = [point(first), point(second)];
+    return Math.hypot(a[0] - b[0], a[1] - b[1]);
+  };
+  const outerA = point(33);
+  const outerB = point(263);
+  const outerSpan = span(33, 263);
+  const axis = outerSpan > 0 ? [
+    (outerB[0] - outerA[0]) / outerSpan,
+    (outerB[1] - outerA[1]) / outerSpan,
+  ] : null;
+  const tilt = (inner: number, outer: number, side: -1 | 1): number | null => {
+    if (!axis || outerSpan <= MIN_SPAN) return null;
+    const [ix, iy] = point(inner);
+    const [ox, oy] = point(outer);
+    const dx = ox - ix;
+    const dy = oy - iy;
+    const outward = side * (dx * axis[0] + dy * axis[1]);
+    if (outward <= MIN_SPAN) return null;
+    const down = dx * -axis[1] + dy * axis[0];
+    return Math.atan2(-down, outward) * 180 / Math.PI;
+  };
+  return {
+    analysis_kind: "exploratory_dense_image_measurements",
+    pose_verified: false,
+    metrics: [
+      metric("intercanthal_to_outer_eye_span", span(133, 362), outerSpan,
+        [133, 362, 33, 263],
+        "Distance between inner eye corners divided by outer eye-corner span in the image."),
+      metric("viewer_left_eye_tilt_deg", tilt(133, 33, -1), 1,
+        [133, 33, 263],
+        "Angle of the medial-to-lateral eye-corner line relative to the outer-eye line; positive means the lateral corner is higher in the image.",
+        "degrees"),
+      metric("viewer_right_eye_tilt_deg", tilt(362, 263, 1), 1,
+        [362, 263, 33],
+        "Angle of the medial-to-lateral eye-corner line relative to the outer-eye line; positive means the lateral corner is higher in the image.",
+        "degrees"),
+      metric("lower_outline_to_cheek_width", span(148, 377), span(234, 454),
+        [148, 377, 234, 454],
+        "Lower outline width divided by cheek outline width in the image; these mesh points do not identify Gonion."),
+    ],
+    not_assessed: [
+      "Anatomical thirds and fifths (no validated Trichion, Nasion, or Gonion)",
+      "Metric 3D pose, focal length, and lens distortion",
+      "Clinical norms, sex-specific manifolds, attractiveness, or treatment advice",
+    ],
   };
 }
 

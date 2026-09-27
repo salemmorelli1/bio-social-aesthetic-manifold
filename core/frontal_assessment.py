@@ -41,10 +41,20 @@ def _normalized_landmarks(landmarks: Any) -> FloatArray:
     points = points.reshape(68, 2)
     if not np.all(np.isfinite(points)):
         raise ValueError("All landmark coordinates must be finite.")
-    scale = float(np.max(np.abs(points)))
+    # Subtract an observed point before scaling. Scaling by the magnitude of
+    # the raw coordinates first loses shape detail when the face is offset far
+    # from the origin relative to its extent. The fallback handles the rare
+    # case where subtraction of finite opposite-signed coordinates overflows.
+    with np.errstate(over="ignore", invalid="ignore"):
+        shifted = points - points[0]
+    if not np.all(np.isfinite(shifted)):
+        coordinate_scale = float(np.max(np.abs(points)))
+        scaled_points = points / coordinate_scale
+        shifted = scaled_points - scaled_points[0]
+    scale = float(np.max(np.abs(shifted)))
     if scale == 0.0:
         raise ValueError("Landmark configuration has zero size.")
-    scaled = points / scale
+    scaled = shifted / scale
     centered = scaled - np.mean(scaled, axis=0, keepdims=True)
     size = float(np.linalg.norm(centered))
     if size == 0.0:

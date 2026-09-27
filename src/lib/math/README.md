@@ -9,6 +9,13 @@ shapes. The Python engine supplies those shapes through
 cross-language example. The module does not implement the Python tangent PCA,
 covariance, Mahalanobis distance, or photographic pose correction.
 
+The preview renders those eight measurements and four further image-plane
+observations from the dense mesh: inner/outer eye span, two roll-relative eye
+corner angles, and lower-outline/cheek width. Each is an uncalibrated projected
+measurement with stated point indices and missingness. The lower-outline
+points are not anatomical Gonion. The Python frontal module and the 27-page
+GPA report keep their original eight-metric scope.
+
 `simulated-references.json` contains algorithm-generated method examples with
 sample sizes, seeds, engine version, and canonical mesh provenance. Keys `a`,
 `b`, and `pooled` do **not** denote male/female groups, beauty ideals, clinical
@@ -25,6 +32,10 @@ coverage and uncertainty analysis, independent validation, and a declared
 scientific purpose. Adding a sex or ancestry label to this synthetic JSON is
 not a valid substitute. A future UI should preserve the source and missingness
 labels adjacent to every quantity and keep photo pixels local.
+
+Large coordinate offsets are handled by translating by an observed point
+before dividing by extent. This preserves all detail still representable in
+float64; it cannot recover bits lost before the coordinates reached the app.
 
 Regenerate on a pinned Python environment:
 

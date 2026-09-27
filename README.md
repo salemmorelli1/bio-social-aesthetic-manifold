@@ -143,12 +143,12 @@ page-controlled implementation narrative is in the
 
 The root now also contains a **parallel, un-deployed** Next.js 15 App Router
 preview, titled Aesthetic-Morphometrics-Engine (AME). It does not replace the
-existing GitHub Pages application or change the Python analysis. Its visible
-flow is opt-in local upload or webcam capture, a single 478-point MediaPipe
-mesh, and a Canvas overlay. Pass 2 adds a pure TypeScript module for the
-existing eight descriptive 2D measurements, 478-to-68 image-pixel mapping,
-and proper-rotation Procrustes distances to explicitly **simulated** reference
-shapes. This library is validated but not yet wired to the preview dashboard.
+existing GitHub Pages application. Its visible flow is opt-in local upload or
+webcam capture, a single 478-point MediaPipe mesh, Canvas overlay, twelve
+descriptive image-plane measurements, and a Procrustes distance to the pooled
+**simulated** reference. The frontal module now translates before scaling to
+preserve representable detail for coordinate files far from the origin. This
+also matches the TypeScript normalization.
 The three highlighted points are an image-plane guide; pitch/yaw/roll
 normalization and an anatomical sagittal fit are **not yet implemented**.
 A single view cannot establish clinical 3D pose.

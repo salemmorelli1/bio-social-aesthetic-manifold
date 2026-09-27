@@ -39,6 +39,17 @@ def test_frontal_metrics_are_similarity_invariant_without_normative_reference():
         assert moved["value"] == pytest.approx(original["value"], abs=1e-12)
 
 
+def test_frontal_metrics_keep_representable_detail_with_large_coordinate_origin():
+    translated = CANONICAL_TEMPLATE + np.array([1.0e10, -1.0e10])
+    # Removing the known origin after float64 input quantization is the best
+    # attainable reference; no algorithm can restore lost input mantissa bits.
+    recentered = translated - np.array([1.0e10, -1.0e10])
+    actual = _values(translated)
+    expected = _values(recentered)
+    for key, value in expected.items():
+        assert actual[key] == pytest.approx(value, abs=1e-12), key
+
+
 def test_frontal_report_discloses_missing_denominators_and_real_discrepancy():
     modified = CANONICAL_TEMPLATE.copy()
     modified[35] = modified[31]
