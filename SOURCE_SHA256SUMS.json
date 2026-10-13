@@ -1,6 +1,6 @@
 {
   ".gitattributes": "3131783d82f971e1a661deab7c0888410a6cdf225968b5a0989816e70a1878c6",
-  ".github/workflows/deploy.yml": "58e67fdc58ed19825b388117ae0c6f92465d4ddefeaedbaafd58d26755db6ba8",
+  ".github/workflows/deploy.yml": "27f1667415bedc277dc6fdf139f0a3560c91e68c8f5d33ecdba132cfa03cbe93",
   ".gitignore": "bb465f4e9ecd86174c9135fafb1afae07a4917948e1538b73c5496f0daa7ea40",
   "LICENSE": "185f49a9fab9835bfd3110d22c17982a3c8fdfe4e98c94c20c469a46acecd70e",
   "LICENSES/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
@@ -37,7 +37,7 @@
   "tailwind.config.js": "43a8cbef0c04e902a0163855c659570d99f8c726e16bf687f04ee59eac465508",
   "tests/test_analytics.py": "feb9b78d1f57abf6e66bd89b3188a35b537ea68336104abd9c8f0aec1224a82a",
   "tests/test_assessment_ui.mjs": "6cbbcbd0eac3067d4e900dfb033b3274c0da724470f7b4d966892305fa99e566",
-  "tests/test_browser.py": "410a26f20fa3a49b80faeddcea526ab9ff8d7c8888dffebe74717b7875f0a01f",
+  "tests/test_browser.py": "c58d81cc096be36abcf3085297e2da59e232c5072d99f88f9c78b61698e89d64",
   "tests/test_coordinate_integrity.mjs": "3aaa963736e7c0e7fc82a3df68e0529b89947bcb2251683d311fc247f35b091a",
   "tests/test_frontal_assessment.py": "63702c7ced58bca61ddecb0abdc8c60189b7b49b2783c609420bdaf371f5f7a2",
   "tests/test_mesh_integrity.mts": "678f33bb2a9cc96d9864dc7a5fc58a4ef9048f704cd3bee7c7f971ac20132bd9",

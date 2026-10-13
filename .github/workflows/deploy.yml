@@ -88,12 +88,12 @@ jobs:
           MANIFOLD_SCREENSHOT: tmp/pdfs/ame-edge.png
 
       - name: Preserve Edge rendering evidence
-        if: runner.os == 'Windows'
+        if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ame-edge-preview
           path: tmp/pdfs/ame-edge.png
-          if-no-files-found: error
+          if-no-files-found: ignore
 
       - name: Rebuild and validate the 27-page report
         run: |

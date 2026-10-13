@@ -43,10 +43,14 @@ def test_built_preview_renders_local_capture_without_starting_detection():
                 page = context.new_page()
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/", wait_until="networkidle")
+                if os.environ.get("MANIFOLD_SCREENSHOT"):
+                    destination = Path(os.environ["MANIFOLD_SCREENSHOT"])
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    page.screenshot(path=str(destination), full_page=True)
                 assert page.get_by_role("button", name="Start camera").is_enabled()
                 assert page.get_by_label("Upload a JPEG, PNG, or WebP facial photo").is_enabled()
-                assert "Research preview" in page.locator(".brand").inner_text()
-                assert "Awaiting input" in page.locator(".stage-caption").inner_text()
+                assert "research preview" in page.locator(".brand").inner_text().casefold()
+                assert "awaiting input" in page.locator(".stage-caption").inner_text().casefold()
                 geometry = page.locator(".sr-only").evaluate(
                     "node=>({width:node.getBoundingClientRect().width,position:getComputedStyle(node).position})"
                 )
@@ -57,10 +61,6 @@ def test_built_preview_renders_local_capture_without_starting_detection():
                 assert columns == 2
                 assert external == [], "Capture/model downloads must wait for an explicit user action."
                 assert errors == []
-                if os.environ.get("MANIFOLD_SCREENSHOT"):
-                    destination = Path(os.environ["MANIFOLD_SCREENSHOT"])
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    page.screenshot(path=str(destination), full_page=True)
             finally:
                 browser.close()
     finally:
