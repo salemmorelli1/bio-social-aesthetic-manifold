@@ -88,8 +88,8 @@ async function fetchVerifiedFaceLandmarkerModel() {
 }
 
 function finiteNumber(value, name) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
+  const numeric = value;
+  if (typeof numeric !== "number" || !Number.isFinite(numeric)) {
     throw new Error(`${name} must be a finite number.`);
   }
   return numeric;
@@ -99,7 +99,7 @@ function validatePointArray(points, expectedLength, name) {
   if (!Array.isArray(points) || points.length !== expectedLength) {
     throw new Error(`${name} must contain exactly ${expectedLength} coordinate pairs.`);
   }
-  return points.map((point, index) => {
+  return Array.from(points, (point, index) => {
     if (!Array.isArray(point) || point.length !== 2) {
       throw new Error(`${name}[${index}] must be an [x, y] pair.`);
     }
@@ -126,7 +126,7 @@ export async function loadLocalFaceLandmarker() {
           delegate: "CPU",
         },
         runningMode: "IMAGE",
-        numFaces: 1,
+        numFaces: 2,
         minFaceDetectionConfidence: 0.55,
         minFacePresenceConfidence: 0.55,
         minTrackingConfidence: 0.55,
@@ -187,20 +187,22 @@ export function denseMeshToDlib68(denseLandmarks, width, height) {
   if (!Array.isArray(denseLandmarks)) {
     throw new Error("The face landmarker did not return a dense landmark array.");
   }
-  const maximumIndex = Math.max(...MEDIAPIPE_TO_DLIB_68);
-  if (denseLandmarks.length <= maximumIndex) {
-    throw new Error(
-      `The detected mesh contains ${denseLandmarks.length} points; at least ${maximumIndex + 1} are required.`
-    );
+  if (![468, 478].includes(denseLandmarks.length) ||
+      Array.from(denseLandmarks).some((point) => !point ||
+        !Number.isFinite(point.x) || !Number.isFinite(point.y))) {
+    throw new Error("Expected a complete 468 or 478 point finite face mesh.");
   }
-  const pixelWidth = finiteNumber(width, "image width");
-  const pixelHeight = finiteNumber(height, "image height");
+  if (![width, height].every((size) => Number.isSafeInteger(size) && size > 0)) {
+    throw new Error("Image dimensions must be positive finite integers.");
+  }
   return MEDIAPIPE_TO_DLIB_68.map((meshIndex) => {
     const point = denseLandmarks[meshIndex];
-    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-      throw new Error(`Dense landmark ${meshIndex} is missing or invalid.`);
+    const x = point.x * width;
+    const y = point.y * height;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error(`Projected mesh coordinate ${meshIndex} is not finite.`);
     }
-    return [point.x * pixelWidth, point.y * pixelHeight];
+    return [x, y];
   });
 }
 
@@ -216,6 +218,9 @@ export async function detectDlib68FromImage(faceLandmarker, imageSource) {
   const faces = result?.faceLandmarks;
   if (!Array.isArray(faces) || faces.length === 0) {
     throw new Error("No face mesh was detected. Try a clear, front-facing image with the full face visible.");
+  }
+  if (faces.length !== 1) {
+    throw new Error("The local photo analysis requires exactly one visible face.");
   }
   const landmarks = denseMeshToDlib68(faces[0], imageSource.width, imageSource.height);
   return {

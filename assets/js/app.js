@@ -722,7 +722,7 @@ function validateCoordinateArray(values) {
     );
   }
   for (const value of values) {
-    if (!Number.isFinite(Number(value))) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
       throw new Error("Every landmark coordinate must be a finite number.");
     }
   }
@@ -739,7 +739,18 @@ function flattenJsonLandmarks(payload) {
   if (!Array.isArray(candidate)) {
     throw new Error("JSON landmark data must be an array or an object with a landmarks array.");
   }
-  return candidate.flat(Infinity).map(Number);
+  if (candidate.length === EXPECTED_COORDINATE_COUNT &&
+      Array.from(candidate).every((value) => typeof value === "number")) {
+    validateCoordinateArray(candidate);
+    return candidate.slice();
+  }
+  if (candidate.length === EXPECTED_COORDINATE_COUNT / 2 &&
+      Array.from(candidate).every((point) => Array.isArray(point) && point.length === 2)) {
+    const flat = candidate.flat(1);
+    validateCoordinateArray(flat);
+    return flat;
+  }
+  throw new Error("Expected 68 ordered coordinate pairs or a flat 136-coordinate vector.");
 }
 
 function parseDelimitedCoordinates(text) {
