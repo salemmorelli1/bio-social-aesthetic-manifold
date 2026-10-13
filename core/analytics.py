@@ -94,7 +94,7 @@ from numpy.typing import NDArray
 
 FloatArray = NDArray[np.float64]
 
-ENGINE_VERSION: Final[str] = "2.0.0"
+ENGINE_VERSION: Final[str] = "2.0.1"
 SCHEMA_VERSION: Final[str] = "2.0"
 LANDMARK_COUNT: Final[int] = 68
 SPATIAL_DIMENSIONS: Final[int] = 2
@@ -276,72 +276,85 @@ def _centroid_size(shape: FloatArray) -> float:
     return float(la.norm(centered, ord="fro", check_finite=False))
 
 
-def _to_preshape(shape: FloatArray) -> tuple[FloatArray, FloatArray, float]:
-    """Remove translation and scale and return preshape, centroid, and size."""
-
-    array = np.asarray(shape, dtype=np.float64)
-    if array.shape != (LANDMARK_COUNT, SPATIAL_DIMENSIONS):
-        raise ValueError(
-            f"Each configuration must have shape ({LANDMARK_COUNT}, "
-            f"{SPATIAL_DIMENSIONS}); received {array.shape}."
-        )
-    if not np.all(np.isfinite(array)):
+def _real_landmark_array(value: Any, *, allow_flat: bool = False) -> FloatArray:
+    """Validate layout and real scalar types before any lossy float conversion."""
+    if np.ma.isMaskedArray(value) and np.any(np.ma.getmaskarray(value)):
+        raise ValueError("Missing landmark coordinates cannot be masked or imputed.")
+    array = np.asarray(value) if isinstance(value, np.ndarray) else np.asarray(value, dtype=object)
+    valid_shape = array.shape == (LANDMARK_COUNT, SPATIAL_DIMENSIONS)
+    if allow_flat:
+        valid_shape = valid_shape or array.shape == (AMBIENT_DIMENSION,)
+    if not valid_shape:
+        expected = "Expected 68 ordered coordinate pairs"
+        if allow_flat:
+            expected += " or a flat 136-coordinate vector"
+        raise ValueError(expected + ".")
+    if array.dtype.kind not in "fiu":
+        real_types = (int, float, np.integer, np.floating)
+        if array.dtype.kind != "O" or any(
+            isinstance(item, (bool, np.bool_)) or not isinstance(item, real_types)
+            for item in array.flat
+        ):
+            raise ValueError("Landmark coordinates must be real numbers, not strings, booleans, or complex values.")
+    try:
+        with np.errstate(over="ignore", invalid="ignore"):
+            result = np.asarray(array, dtype=np.float64).reshape(LANDMARK_COUNT, SPATIAL_DIMENSIONS)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("Landmark coordinates must be representable finite float64 numbers.") from error
+    if not np.all(np.isfinite(result)):
         raise ValueError("Landmark coordinates must all be finite numbers.")
+    return result
 
+
+def _to_preshape(shape: FloatArray) -> tuple[FloatArray, FloatArray, float]:
+    """Remove translation before normalization, retaining representable detail."""
+    array = _real_landmark_array(shape)
+    origin = array[0]
     with np.errstate(over="ignore", under="ignore", invalid="ignore"):
-        centroid = np.mean(array, axis=0)
-        centered = array - centroid
+        shifted = array - origin
+        relative_mean = np.mean(shifted, axis=0)
+        centered = shifted - relative_mean
+        centroid = origin + relative_mean
         size = float(la.norm(centered, ord="fro", check_finite=False))
-
-    # The direct norm is fastest and preserves the pinned ordinary-scale
-    # results, but squaring can overflow above roughly sqrt(float_max) or
-    # underflow below roughly sqrt(float_tiny). Recompute in scaled coordinates
-    # whenever that path is unsafe. This retains similarity invariance across
-    # the representable range instead of applying a dimensionful "near-zero"
-    # cutoff to otherwise valid configurations.
-    direct_norm_is_unsafe = (
-        not np.all(np.isfinite(centroid))
-        or not np.all(np.isfinite(centered))
+    unsafe = (
+        not np.all(np.isfinite(centered))
+        or not np.all(np.isfinite(centroid))
         or not np.isfinite(size)
         or size < np.sqrt(np.finfo(np.float64).tiny)
     )
-    if direct_norm_is_unsafe:
-        coordinate_scale = float(np.max(np.abs(array)))
-        if coordinate_scale == 0.0:
-            raise ValueError("The configuration has zero centroid size.")
+    if not unsafe:
+        return centered / size, centroid, size
 
-        with np.errstate(over="ignore", under="ignore", invalid="ignore"):
-            scaled_array = array / coordinate_scale
-            scaled_centroid = np.mean(scaled_array, axis=0)
-            scaled_centered = scaled_array - scaled_centroid
-            centered_peak = float(np.max(np.abs(scaled_centered)))
-
-        if centered_peak == 0.0:
-            raise ValueError("The configuration has zero centroid size.")
-
-        norm_input = scaled_centered / centered_peak
-        norm_factor = float(la.norm(norm_input, ord="fro", check_finite=False))
-        with np.errstate(over="ignore", under="ignore", invalid="ignore"):
-            centroid = scaled_centroid * coordinate_scale
-            size = coordinate_scale * (centered_peak * norm_factor)
-        preshape = norm_input / norm_factor
-
-        if (
-            not np.all(np.isfinite(centroid))
-            or not np.isfinite(size)
-            or size <= 0.0
-            or not np.all(np.isfinite(preshape))
-        ):
-            raise ValueError(
-                "Coordinate magnitudes are too large to compute a finite "
-                "centroid size in double precision. Rescale the configuration "
-                "before analysis."
-            )
-        return preshape, centroid, size
-
-    if size == 0.0:
+    # Normalize translated differences when they are representable. Only the
+    # opposite-sign overflow case needs raw-coordinate prescaling.
+    if np.all(np.isfinite(shifted)):
+        scale = float(np.max(np.abs(shifted)))
+        scaled = shifted / scale if scale > 0.0 else shifted
+        scaled_origin = None
+    else:
+        scale = float(np.max(np.abs(array)))
+        scaled_array = array / scale
+        scaled_origin = scaled_array[0]
+        scaled = scaled_array - scaled_origin
+    if scale == 0.0:
         raise ValueError("The configuration has zero centroid size.")
-    return centered / size, centroid, size
+    mean = np.mean(scaled, axis=0)
+    scaled_centered = scaled - mean
+    peak = float(np.max(np.abs(scaled_centered)))
+    if peak == 0.0:
+        raise ValueError("The configuration has zero centroid size.")
+    norm_input = scaled_centered / peak
+    factor = float(la.norm(norm_input, ord="fro", check_finite=False))
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        centroid = origin + mean * scale if scaled_origin is None else (scaled_origin + mean) * scale
+        size = scale * (peak * factor)
+    preshape = norm_input / factor
+    if not np.all(np.isfinite(centroid)) or not np.isfinite(size) or size <= 0.0:
+        raise ValueError(
+            "Coordinate magnitudes are too large to compute a finite centroid size in double precision. "
+            "Rescale the configuration before analysis."
+        )
+    return preshape, centroid, size
 
 
 def _optimal_rotation(shape: FloatArray, reference: FloatArray) -> FloatArray:
@@ -381,7 +394,9 @@ def iterative_generalized_procrustes(
     ``tolerance`` or ``max_iterations`` is reached.
     """
 
-    sample = np.asarray(shapes, dtype=np.float64)
+    if np.ma.isMaskedArray(shapes) and np.any(np.ma.getmaskarray(shapes)):
+        raise ValueError("Missing landmark coordinates cannot be masked or imputed.")
+    sample = np.asarray(shapes) if isinstance(shapes, np.ndarray) else np.asarray(shapes, dtype=object)
     expected_tail = (LANDMARK_COUNT, SPATIAL_DIMENSIONS)
     if sample.ndim != 3 or sample.shape[1:] != expected_tail:
         raise ValueError(
@@ -389,10 +404,17 @@ def iterative_generalized_procrustes(
         )
     if sample.shape[0] < 2:
         raise ValueError("GPA requires at least two configurations.")
-    if max_iterations < 1:
-        raise ValueError("max_iterations must be at least 1.")
-    if tolerance <= 0.0:
-        raise ValueError("tolerance must be positive.")
+    if isinstance(max_iterations, (bool, np.bool_)) or not isinstance(max_iterations, (int, np.integer)) or max_iterations < 1:
+        raise ValueError("max_iterations must be a positive integer.")
+    max_iterations = int(max_iterations)
+    if isinstance(tolerance, (bool, np.bool_)) or not isinstance(tolerance, (int, float, np.integer, np.floating)):
+        raise ValueError("tolerance must be a positive finite real number.")
+    try:
+        tolerance = float(tolerance)
+    except (ValueError, OverflowError) as error:
+        raise ValueError("tolerance must be a positive finite real number.") from error
+    if not np.isfinite(tolerance) or tolerance <= 0.0:
+        raise ValueError("tolerance must be a positive finite real number.")
 
     preshapes = np.empty_like(sample, dtype=np.float64)
     for index, shape in enumerate(sample):
@@ -808,6 +830,15 @@ def _fit_reference_model(population: str) -> ReferenceModel:
         np.einsum("ij,ji->i", centered_tangent, reference_solved), 0.0
     )
 
+    # These arrays are shared by the cached model. Prevent ordinary accidental
+    # mutation from changing later users' distances or covariance calculations.
+    for array in (
+        gpa.aligned_shapes, gpa.consensus, gpa.per_shape_distances, basis,
+        tangent_mean, covariance, covariance_cholesky[0], eigenvalues,
+        eigenvectors, reference_mahalanobis_squared,
+    ):
+        array.setflags(write=False)
+
     return ReferenceModel(
         key=key,
         sample_size=int(ensemble.shape[0]),
@@ -1110,16 +1141,7 @@ def _coerce_landmarks(value: Any) -> FloatArray:
     elif hasattr(raw, "to_py"):
         raw = raw.to_py()
 
-    array = np.asarray(raw, dtype=np.float64)
-    if array.size != AMBIENT_DIMENSION:
-        raise ValueError(
-            f"Expected {AMBIENT_DIMENSION} coordinate values for 68x2 "
-            f"landmarks; received {array.size}."
-        )
-    array = array.reshape(LANDMARK_COUNT, SPATIAL_DIMENSIONS)
-    if not np.all(np.isfinite(array)):
-        raise ValueError("Landmark coordinates must all be finite numbers.")
-    return array
+    return _real_landmark_array(raw, allow_flat=True)
 
 
 def run_pipeline_from_js(

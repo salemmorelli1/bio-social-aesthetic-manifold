@@ -124,7 +124,7 @@ def reference(text: str) -> dict[str, Any]:
 # Single source of truth for every worked-example value printed in the report.
 # The build-time drift check below compares this fixture with the live engine.
 WORKED_EXAMPLE: dict[str, Any] = {
-    "engine_version": "2.0.0",
+    "engine_version": "2.0.1",
     "gpa_iterations": 4,
     "reference_sample_size": 320,
     "shrinkage_intensity": 0.03200686389237932,

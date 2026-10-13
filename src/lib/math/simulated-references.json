@@ -1,7 +1,7 @@
 {
   "schema_version": "ame-simulated-consensus-v1",
   "kind": "simulated",
-  "engine_version": "2.0.0",
+  "engine_version": "2.0.1",
   "source": "core.analytics._fit_reference_model",
   "canonical_model_commit": "a908d668c730da128dfa8d9f6bd25d519d006692",
   "interpretation": "Algorithm-generated example shapes. No empirical cohort, clinical norm, demographic label, attractiveness target, or population percentile.",

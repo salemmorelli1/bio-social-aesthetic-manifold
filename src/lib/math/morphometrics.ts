@@ -37,7 +37,7 @@ export function denseMeshToDlib68(
   mesh: readonly MeshPoint[], imageWidth: number, imageHeight: number,
 ): Point2D[] {
   if (!Array.isArray(mesh) || mesh.length !== 478 ||
-      mesh.some((point) => !point || ![point.x, point.y, point.z].every(Number.isFinite))) {
+      Array.from(mesh).some((point) => !point || ![point.x, point.y, point.z].every(Number.isFinite))) {
     throw new Error("Expected a single 478-point finite face mesh.");
   }
   if (![imageWidth, imageHeight].every((size) => Number.isSafeInteger(size) && size > 0)) {
@@ -55,7 +55,7 @@ export function denseMeshToDlib68(
 
 function preshape(landmarks: readonly Point2D[]): Point2D[] {
   if (!Array.isArray(landmarks) || landmarks.length !== 68 ||
-      landmarks.some((point) => !Array.isArray(point) || point.length !== 2 ||
+      Array.from(landmarks).some((point) => !Array.isArray(point) || point.length !== 2 ||
         !Number.isFinite(point[0]) || !Number.isFinite(point[1]))) {
     throw new Error("Expected 68 ordered finite two-dimensional landmarks.");
   }

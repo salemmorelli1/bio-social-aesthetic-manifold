@@ -46,13 +46,16 @@ export function scaledDimensions(width: number, height: number, maximum = 1600):
 
 export function singleFaceMesh(result: { faceLandmarks: readonly (readonly MeshPoint[])[] }):
   readonly MeshPoint[] | null {
+  if (!Array.isArray(result?.faceLandmarks)) {
+    throw new Error("The capture did not return a face-mesh collection.");
+  }
   if (result.faceLandmarks.length === 0) return null;
   if (result.faceLandmarks.length !== 1) {
     throw new Error("This capture stage supports exactly one visible face.");
   }
   const mesh = result.faceLandmarks[0];
-  if (mesh.length !== MESH_LANDMARK_COUNT ||
-      mesh.some((point) => !point || ![point.x, point.y, point.z].every(Number.isFinite))) {
+  if (!Array.isArray(mesh) || mesh.length !== MESH_LANDMARK_COUNT ||
+      Array.from(mesh).some((point) => !point || ![point.x, point.y, point.z].every(Number.isFinite))) {
     throw new Error("The face mesh did not contain 478 finite landmarks.");
   }
   return mesh;

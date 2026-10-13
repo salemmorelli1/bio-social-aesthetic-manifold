@@ -11,6 +11,44 @@ configuration with explicitly simulated reference data.
 The complete, page-controlled methods record is available as a
 [27-page APA-style technical report](docs/bio_social_aesthetic_manifold_apa_report.pdf).
 
+## October 2026 integrity audit
+
+The [numerical audit](docs/NUMERICAL_INTEGRITY_AUDIT_2026-10-12.md) updates the
+engine to 2.0.1. It corrects large-origin centering, rejects ambiguous coordinate
+layouts and coercion, validates GPA convergence controls, protects cached
+calibration arrays, and requires complete meshes and an unambiguous single
+face. The dependency lock, Tailwind build plugin, Windows CI, and installed-Edge
+preview verification are also updated. The existing numerical report fixture
+and descriptive research scope remain in place.
+
+Run `python verify_source.py` to verify the exact tracked source and report
+bytes. Fresh checkouts use LF text endings on Windows and Linux. For complete
+local verification with Python 3.12 and Node 24 or later:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pip check
+python -m pytest tests -q
+python -m pyflakes core scripts tests verify_source.py
+python scripts/export_ame_references.py --check
+node --test tests/test_*.mjs
+npm ci --no-audit --no-fund
+npm audit --audit-level=high
+npm test
+npm run build
+python scripts/build_apa_report.py
+python verify_source.py
+```
+
+On Windows, the optional built-preview check uses your installed Microsoft
+Edge and waits for explicit user action before starting a model or camera:
+
+```bash
+python -m pip install -r requirements-browser.txt
+MANIFOLD_BROWSER_TESTS=1 MANIFOLD_TEST_BROWSER=msedge \
+  python -m pytest tests/test_browser.py -q
+```
+
 ## Scientific scope
 
 This repository implements a **synthetic demonstration**, not a biometric
@@ -295,7 +333,9 @@ Windows. The test suite compares two clean builds with the committed artifact.
 ## Input formats
 
 Each coordinate-file input must contain exactly 68 ordered two-dimensional
-landmarks, or 136 finite numbers in total.
+landmarks, or a flat vector of 136 finite real numbers. JSON coordinates must
+be numeric tokens; transposed matrices, extra nesting, strings, booleans, and
+missing values are rejected.
 
 ### JSON matrix
 

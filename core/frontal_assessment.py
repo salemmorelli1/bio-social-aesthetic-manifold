@@ -35,10 +35,23 @@ def _normalized_landmarks(landmarks: Any) -> FloatArray:
         landmarks = json.loads(landmarks)
     elif hasattr(landmarks, "to_py"):
         landmarks = landmarks.to_py()
-    points = np.asarray(landmarks, dtype=np.float64)
-    if points.size != 136:
-        raise ValueError("Expected 68 ordered two-dimensional landmarks.")
-    points = points.reshape(68, 2)
+    if np.ma.isMaskedArray(landmarks) and np.any(np.ma.getmaskarray(landmarks)):
+        raise ValueError("Missing landmark coordinates cannot be masked or imputed.")
+    raw = np.asarray(landmarks) if isinstance(landmarks, np.ndarray) else np.asarray(landmarks, dtype=object)
+    if raw.shape not in ((68, 2), (136,)):
+        raise ValueError("Expected 68 ordered coordinate pairs or a flat 136-coordinate vector.")
+    if raw.dtype.kind not in "fiu":
+        real_types = (int, float, np.integer, np.floating)
+        if raw.dtype.kind != "O" or any(
+            isinstance(item, (bool, np.bool_)) or not isinstance(item, real_types)
+            for item in raw.flat
+        ):
+            raise ValueError("Landmark coordinates must be real numbers, not strings, booleans, or complex values.")
+    try:
+        with np.errstate(over="ignore", invalid="ignore"):
+            points = np.asarray(raw, dtype=np.float64).reshape(68, 2)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("Landmark coordinates must be representable finite float64 numbers.") from error
     if not np.all(np.isfinite(points)):
         raise ValueError("All landmark coordinates must be finite.")
     # Subtract an observed point before scaling. Scaling by the magnitude of
